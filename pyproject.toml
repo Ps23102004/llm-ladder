@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-ladder"
+version = "0.1.0"
+description = "A CLI that cascades prompts through tiers of local Ollama models, escalating only on low self-consistency confidence."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "typer",
+    "rich",
+    "requests",
+    "pyyaml"
+]
+
+[project.scripts]
+ladder = "llm_ladder.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["llm_ladder"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "llm_ladder/*",
+    "chains.yaml"
+]
+
+[tool.hatch.build]
+include = [
+    "llm_ladder/*",
+    "chains.yaml"
+]

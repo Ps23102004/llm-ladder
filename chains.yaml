@@ -1,0 +1,11 @@
+chains:
+  default:
+    - model: gemma4:e4b-mlx
+      samples: 3
+      threshold: 0.66
+    - model: qwen3.8:27b-mlx
+      samples: 3
+      threshold: 0.75
+    - model: ornith:35b-q4_K_M
+      samples: 1
+      threshold: 0.0
