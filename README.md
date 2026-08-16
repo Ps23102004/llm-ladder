@@ -48,12 +48,34 @@ View aggregated performance statistics and estimated savings:
 ladder stats
 ```
 
+### Benchmark
+
+```bash
+ladder benchmark [--quick] [--models m1,m2] [--skip-gpu]
+```
+
+Benchmarks every Ollama model installed on your machine: speed (tokens/sec,
+time-to-first-token), hardware usage (RAM, CPU, and — on macOS with sudo —
+GPU power/utilization), and output quality across 8 categories (reasoning,
+code including edge cases, JSON extraction, tool usage, instruction
+following, factual recall, RAG/retrieval-grounded QA). A memory-safety
+filter skips any model that would eat more than 80% of currently-available
+RAM rather than risk crashing your machine. Results append to
+`~/.llm-ladder/benchmark.jsonl` and rank models ordinally per category — see
+`web/benchmark.html` for the leaderboard view (same zero-dependency,
+paste-or-load-your-own-file pattern as the ledger dashboard).
+
+"Estimated load bandwidth" is a derived figure (model size ÷
+time-to-first-token), not a verified hardware measurement — labeled as such
+everywhere it appears.
+
 ## Web
 
 A self-contained, zero-dependency site in `web/` — no server needed:
 
 - **`index.html`** — pitch page with a visual walkthrough of the confidence-gated escalation flow.
-- **`stats.html`** — paste your `~/.llm-ladder/ledger.jsonl` contents and get a live dashboard: savings %, tier breakdown, recent runs. Parsing happens entirely in your browser.
+- **`stats.html`** — load your `~/.llm-ladder/ledger.jsonl` (file picker, drag-and-drop, or paste) and get a live dashboard: savings %, tier breakdown, recent runs, with chain/tier/model filters. Parsing happens entirely in your browser.
+- **`benchmark.html`** — load your `~/.llm-ladder/benchmark.jsonl` and get a ranked leaderboard across speed and all 8 quality categories, filterable per category.
 
 ## MCP
 
