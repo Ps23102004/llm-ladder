@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.resources
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Dict, List
 
 import yaml
@@ -40,31 +39,48 @@ def load_chains(path: str) -> Dict[str, ChainConfig]:
         
     Returns:
         Dictionary mapping chain names to ChainConfig objects.
+
+    Raises:
+        ValueError: if the file cannot be read/parsed, or a tier omits "model".
     """
-    with open(path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except (yaml.YAMLError, OSError) as exc:
+        raise ValueError(f"could not load chains file {path}: {exc}") from exc
+
     chains = {}
     if not data or "chains" not in data:
         return chains
-        
+
     raw_chains = data["chains"]
     for name, tiers_data in raw_chains.items():
+        if not isinstance(tiers_data, list):
+            raise ValueError(
+                f"malformed chains file {path}: chain '{name}' must be a list of tiers"
+            )
         tiers = []
-        if isinstance(tiers_data, list):
-            for tier_data in tiers_data:
-                # Ensure fields are properly cast
-                model = str(tier_data.get("model"))
-                samples = int(tier_data.get("samples", 1))
-                threshold = float(tier_data.get("threshold", 0.0))
-                tiers.append(TierConfig(model=model, samples=samples, threshold=threshold))
-        elif isinstance(tiers_data, dict):
-            # Handle case where a chain might be a single tier dict, though schema implies list
-            model = str(tiers_data.get("model"))
-            samples = int(tiers_data.get("samples", 1))
-            threshold = float(tiers_data.get("threshold", 0.0))
-            tiers.append(TierConfig(model=model, samples=samples, threshold=threshold))
-            
+        for index, tier_data in enumerate(tiers_data):
+            if not isinstance(tier_data, dict) or not tier_data.get("model"):
+                raise ValueError(
+                    f"malformed chains file {path}: chain '{name}' tier {index} "
+                    "is missing required key 'model'"
+                )
+            samples = int(tier_data.get("samples", 1))
+            if samples < 1:
+                raise ValueError(
+                    f"malformed chains file {path}: chain '{name}' tier {index} "
+                    f"has samples={samples}, must be at least 1"
+                )
+            # Ensure fields are properly cast
+            tiers.append(
+                TierConfig(
+                    model=str(tier_data["model"]),
+                    samples=samples,
+                    threshold=float(tier_data.get("threshold", 0.0)),
+                )
+            )
+
         chains[name] = ChainConfig(name=name, tiers=tiers)
-        
+
     return chains

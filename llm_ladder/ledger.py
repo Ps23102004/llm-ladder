@@ -35,8 +35,11 @@ class Ledger:
             "duration_s": duration_s,
             "timestamp": time.time(),
         }
-        with open(self.path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry) + "\n")
+        try:
+            with open(self.path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry) + "\n")
+        except OSError as exc:
+            raise RuntimeError(f"could not write to ledger at {self.path}: {exc}") from exc
 
     def summary(self) -> dict:
         summary: dict[str, Any] = {
@@ -44,12 +47,14 @@ class Ledger:
             "runs_by_tier": {},
             "total_duration_s": 0.0,
             "estimated_savings_pct": 0.0,
+            "skipped_malformed": 0,
         }
 
         if not os.path.exists(self.path):
             return summary
 
         entries: list[dict[str, Any]] = []
+        skipped_malformed = 0
         with open(self.path, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
@@ -58,8 +63,10 @@ class Ledger:
                 try:
                     entries.append(json.loads(line))
                 except json.JSONDecodeError:
+                    skipped_malformed += 1
                     continue
 
+        summary["skipped_malformed"] = skipped_malformed
         total_runs = len(entries)
         summary["total_runs"] = total_runs
 

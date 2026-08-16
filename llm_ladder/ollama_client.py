@@ -1,17 +1,30 @@
 from __future__ import annotations
 
+import os
+
 import requests
+
+DEFAULT_HOST = "http://127.0.0.1:11434"
 
 
 class OllamaConnectionError(Exception):
     """Raised when communication with the Ollama endpoint fails."""
 
 
+class OllamaModelNotFoundError(OllamaConnectionError):
+    """Raised when Ollama reports the requested model isn't pulled (HTTP 404)."""
+
+
+def resolve_host(host: str | None = None) -> str:
+    return host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+
+
 def chat(
     model: str,
     prompt: str,
-    host: str = "http://127.0.0.1:11434",
+    host: str | None = None,
 ) -> dict:
+    host = resolve_host(host)
     url = f"{host}/api/chat"
     payload = {
         "model": model,
@@ -27,6 +40,10 @@ def chat(
             f"Could not reach Ollama endpoint at {host}: {exc}"
         ) from exc
     except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            raise OllamaModelNotFoundError(
+                f"Model '{model}' isn't available at {host}. Run `ollama pull {model}` first."
+            ) from exc
         raise OllamaConnectionError(
             f"Ollama endpoint at {host} returned status {exc.response.status_code}: {exc}"
         ) from exc
@@ -40,7 +57,7 @@ def chat_n(
     model: str,
     prompt: str,
     n: int,
-    host: str = "http://127.0.0.1:11434",
+    host: str | None = None,
 ) -> list[str]:
     results: list[str] = []
     for _ in range(n):

@@ -6,13 +6,22 @@ from rich.panel import Panel
 from rich.table import Table
 
 from llm_ladder.config import load_chains, default_chains_path, ChainConfig
-from llm_ladder.ollama_client import OllamaConnectionError
+from llm_ladder.ollama_client import OllamaConnectionError, OllamaModelNotFoundError
 from llm_ladder.ledger import Ledger
 from llm_ladder.engine import run_cascade
 
 app = typer.Typer()
 console = Console()
 error_console = Console(stderr=True)
+
+
+def _load_chains_or_exit() -> dict:
+    try:
+        return load_chains(default_chains_path())
+    except ValueError as e:
+        error_console.print(f"[bold red]Config Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
 
 @app.command()
 def run(
@@ -21,7 +30,7 @@ def run(
     json_out: bool = typer.Option(False, "--json", help="Output result as JSON")
 ):
     """Run a prompt through the cascade ladder."""
-    chains = load_chains(default_chains_path())
+    chains = _load_chains_or_exit()
 
     if chain not in chains:
         error_console.print(f"Error: Chain '{chain}' not found.")
@@ -51,17 +60,23 @@ def run(
             )
             console.print(panel)
 
+    except OllamaModelNotFoundError as e:
+        error_console.print(f"[bold red]Model Not Found:[/bold red] {e}")
+        raise typer.Exit(1)
     except OllamaConnectionError as e:
         error_console.print(f"[bold red]Ollama Connection Error:[/bold red] {e}")
         raise typer.Exit(1)
     except ValueError as e:
         error_console.print(f"[bold red]Value Error:[/bold red] {e}")
         raise typer.Exit(1)
+    except RuntimeError as e:
+        error_console.print(f"[bold red]Ledger Error:[/bold red] {e}")
+        raise typer.Exit(1)
 
 @app.command()
 def chains():
     """List available chains and their tiers."""
-    chains_config = load_chains(default_chains_path())
+    chains_config = _load_chains_or_exit()
 
     table = Table(title="Available Chains")
     table.add_column("Chain Name", style="cyan")
@@ -76,8 +91,12 @@ def chains():
 @app.command()
 def stats():
     """Display ledger statistics."""
-    ledger = Ledger()
-    summary = ledger.summary()
+    try:
+        ledger = Ledger()
+        summary = ledger.summary()
+    except OSError as e:
+        error_console.print(f"[bold red]Ledger Error:[/bold red] could not read the ledger file: {e}")
+        raise typer.Exit(1)
 
     table = Table(title="Ledger Statistics")
     table.add_column("Metric", style="cyan")
@@ -91,6 +110,10 @@ def stats():
 
     table.add_row("Total Duration (s)", f"{summary.get('total_duration_s', 0):.2f}")
     table.add_row("Estimated Savings %", f"{summary.get('estimated_savings_pct', 0):.2f}")
+
+    skipped = summary.get("skipped_malformed", 0)
+    if skipped:
+        console.print(f"[yellow]{skipped} malformed ledger {'entry' if skipped == 1 else 'entries'} skipped.[/yellow]")
 
     console.print(table)
 

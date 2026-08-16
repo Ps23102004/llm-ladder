@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+import traceback
+
 from mcp.server import MCPServer
 
 from llm_ladder.config import load_chains, default_chains_path
@@ -18,7 +21,12 @@ def ladder_run(prompt: str, chain: str = "default") -> dict:
     prompts while still trusting the largest tier's answer as a fallback.
     Requires a local Ollama instance with the chain's models pulled.
     """
-    chains = load_chains(default_chains_path())
+    try:
+        chains = load_chains(default_chains_path())
+    except Exception as exc:
+        traceback.print_exc(file=sys.stderr)
+        return {"error": str(exc)}
+
     if chain not in chains:
         return {"error": f"chain '{chain}' not found", "available_chains": list(chains.keys())}
 
@@ -27,6 +35,11 @@ def ladder_run(prompt: str, chain: str = "default") -> dict:
     except OllamaConnectionError as exc:
         return {"error": f"could not reach Ollama: {exc}"}
     except ValueError as exc:
+        return {"error": str(exc)}
+    except Exception as exc:
+        # Last-resort fallback so a tool call never crashes the calling agent —
+        # but log the full traceback so an unexpected bug is still visible in dev.
+        traceback.print_exc(file=sys.stderr)
         return {"error": str(exc)}
 
     return {
@@ -40,7 +53,11 @@ def ladder_run(prompt: str, chain: str = "default") -> dict:
 @mcp.tool()
 def ladder_chains() -> dict:
     """List the configured model chains and their tier order."""
-    chains = load_chains(default_chains_path())
+    try:
+        chains = load_chains(default_chains_path())
+    except Exception as exc:
+        traceback.print_exc(file=sys.stderr)
+        return {"error": str(exc)}
     return {
         name: [tier.model for tier in config.tiers]
         for name, config in chains.items()
