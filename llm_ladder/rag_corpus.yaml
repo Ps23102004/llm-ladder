@@ -1,0 +1,12 @@
+corpus:
+  - id: doc1
+    text: "The llm-ladder confidence gate uses self-consistency voting: it samples a model N times and checks whether the majority of samples agree after normalization."
+  - id: doc2
+    text: "BEA Regional Price Parity data measures cost of living by US state, with 100 representing the national average purchasing power."
+questions:
+  - prompt: "What technique does llm-ladder's confidence gate use to decide whether to trust an answer?"
+    context_id: doc1
+    required_keywords: ["self-consistency", "voting"]
+  - prompt: "What number represents the national average purchasing power in BEA Regional Price Parity data?"
+    context_id: doc2
+    required_keywords: ["100"]

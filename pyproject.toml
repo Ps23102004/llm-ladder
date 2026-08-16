@@ -13,7 +13,8 @@ dependencies = [
     "typer",
     "rich",
     "requests",
-    "pyyaml"
+    "pyyaml",
+    "psutil"
 ]
 
 [project.optional-dependencies]

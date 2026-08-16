@@ -1,0 +1,29 @@
+reasoning:
+  - prompt: "If a train travels 60 miles in 1.5 hours, what is its speed in miles per hour? Answer with just the number."
+    expected: "40"
+  - prompt: "What is 17 + 25? Answer with just the number."
+    expected: "42"
+code:
+  - prompt: "Write a Python function `add(a, b)` that returns the sum of two numbers. Only output the code in a ```python code block, no explanation."
+    test_input: "add(2, 3)"
+    expected_output: "5"
+  - prompt: "Write a Python function `safe_divide(a, b)` that returns a/b, or None if b is 0 (do not raise on division by zero). Only output the code in a ```python code block, no explanation."
+    test_input: "safe_divide(10, 0)"
+    expected_output: "None"
+json_extraction:
+  - prompt: "Extract the company and role from this text as a JSON object with keys \"company\" and \"role\": 'Jane Smith works as a Senior Engineer at Acme Corp.' Only output the JSON."
+    expected_fields:
+      company: "Acme Corp"
+      role: "Senior Engineer"
+tool_schema:
+  - prompt: "You have access to a tool called get_weather(city: string). Call this tool to get the weather in Paris. Respond ONLY with a JSON object in the form {\"tool\": \"get_weather\", \"args\": {\"city\": \"...\"}}."
+    expected_tool: "get_weather"
+    expected_args_keys: ["city"]
+instruction_following:
+  - prompt: "Answer in exactly 3 words: what color is the sky on a clear day?"
+    pattern: '^(\S+\s+){2}\S+$'
+factual_recall:
+  - prompt: "In what year did the Eiffel Tower open to the public? Answer with just the year."
+    accepted: ["1889"]
+  - prompt: "Who wrote the play 'Romeo and Juliet'? Answer with just the name."
+    accepted: ["William Shakespeare", "Shakespeare"]

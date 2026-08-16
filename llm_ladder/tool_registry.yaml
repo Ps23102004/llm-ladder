@@ -1,0 +1,33 @@
+tools:
+  - name: ffmpeg
+    check_command: [ffmpeg, -version]
+    install_hint: "brew install ffmpeg"
+    description: "video/audio transcode, trim, extract"
+  - name: yt-dlp
+    check_command: [yt-dlp, --version]
+    install_hint: "brew install yt-dlp"
+    description: "download video/audio from URLs"
+  - name: magick
+    check_command: [magick, -version]
+    install_hint: "brew install imagemagick"
+    description: "image convert/resize/edit"
+  - name: tesseract
+    check_command: [tesseract, --version]
+    install_hint: "brew install tesseract"
+    description: "local OCR"
+  - name: pandoc
+    check_command: [pandoc, --version]
+    install_hint: "brew install pandoc"
+    description: "document format conversion"
+  - name: git
+    check_command: [git, --version]
+    install_hint: "brew install git"
+    description: "version control"
+  - name: jq
+    check_command: [jq, --version]
+    install_hint: "brew install jq"
+    description: "JSON processor"
+  - name: docker
+    check_command: [docker, --version]
+    install_hint: "https://docker.com/get-started"
+    description: "containers"
