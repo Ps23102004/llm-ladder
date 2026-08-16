@@ -2,6 +2,8 @@
 
 **llm-ladder** is a cascading confidence-gated local LLM router designed to optimize local inference costs. Instead of routing every prompt to a large, slow model, it attempts to resolve queries with smaller, faster models first. It only escalates to bigger, slower models when the smaller ones "disagree with themselves" (i.e., fall below a confidence threshold). This approach significantly cuts local inference cost and latency for high-volume or simple tasks, reserving heavy compute for complex edge cases.
 
+![The cascade landing page and the ledger stats dashboard showing savings by tier](assets/llm-ladder-demo.gif)
+
 ## Installation
 
 ```bash
