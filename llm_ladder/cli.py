@@ -9,6 +9,7 @@ from llm_ladder.config import load_chains, default_chains_path, ChainConfig
 from llm_ladder.ollama_client import OllamaConnectionError, OllamaModelNotFoundError
 from llm_ladder.ledger import Ledger
 from llm_ladder.engine import run_cascade
+from llm_ladder.benchmark import run_benchmark
 
 app = typer.Typer()
 console = Console()
@@ -114,6 +115,38 @@ def stats():
     skipped = summary.get("skipped_malformed", 0)
     if skipped:
         console.print(f"[yellow]{skipped} malformed ledger {'entry' if skipped == 1 else 'entries'} skipped.[/yellow]")
+
+    console.print(table)
+
+@app.command()
+def benchmark(
+    quick: bool = typer.Option(False, "--quick", help="Speed benchmark only, skip the quality suite"),
+    models: str = typer.Option(None, "--models", help="Comma-separated model names to benchmark instead of all installed"),
+    skip_gpu: bool = typer.Option(False, "--skip-gpu", help="Skip GPU telemetry (no sudo prompt)"),
+):
+    """Benchmark installed Ollama models: speed, hardware usage, and output quality."""
+    model_list = [m.strip() for m in models.split(",")] if models else None
+    try:
+        results = run_benchmark(models=model_list, skip_gpu=skip_gpu, quick=quick)
+    except RuntimeError as e:
+        error_console.print(f"[bold red]Benchmark Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+    table = Table(title="Benchmark Results")
+    table.add_column("Model", style="cyan")
+    table.add_column("Status", style="magenta")
+    table.add_column("Tokens/sec", style="green")
+    table.add_column("Quality", style="yellow")
+
+    for r in results:
+        if r.skipped_reason:
+            table.add_row(r.model, f"skipped: {r.skipped_reason}", "-", "-")
+            continue
+        tps = f"{r.tokens_per_sec:.1f}" if r.tokens_per_sec else "-"
+        total_passed = sum(c.passed for c in r.categories)
+        total_tasks = sum(c.total for c in r.categories)
+        quality = f"{total_passed}/{total_tasks}" if total_tasks else "-"
+        table.add_row(r.model, "ok", tps, quality)
 
     console.print(table)
 
