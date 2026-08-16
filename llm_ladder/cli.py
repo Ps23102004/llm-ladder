@@ -1,6 +1,4 @@
-import time
 import json
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -8,9 +6,9 @@ from rich.panel import Panel
 from rich.table import Table
 
 from llm_ladder.config import load_chains, default_chains_path, ChainConfig
-from llm_ladder.ollama_client import chat_n, OllamaConnectionError
-from llm_ladder.confidence import majority_vote
+from llm_ladder.ollama_client import OllamaConnectionError
 from llm_ladder.ledger import Ledger
+from llm_ladder.engine import run_cascade
 
 app = typer.Typer()
 console = Console()
@@ -33,58 +31,22 @@ def run(
     ledger = Ledger()
 
     try:
-        final_answer = ""
-        final_confidence = 0.0
-        final_tier_index = 0
-        final_model = ""
-        found = False
-
-        for i, tier in enumerate(chain_config.tiers):
-            start_time = time.perf_counter()
-            results = chat_n(tier.model, prompt, tier.samples)
-            duration = time.perf_counter() - start_time
-
-            answer, confidence = majority_vote(results)
-            is_last = (i == len(chain_config.tiers) - 1)
-
-            ledger.record(
-                chain=chain,
-                tier_index=i,
-                model=tier.model,
-                confidence=confidence,
-                samples=tier.samples,
-                escalated=(i > 0),
-                used_last_tier=is_last,
-                duration_s=duration
-            )
-
-            if confidence >= tier.threshold or is_last:
-                final_answer = answer
-                final_confidence = confidence
-                final_tier_index = i
-                final_model = tier.model
-                found = True
-                break
-
-        if not found:
-            error_console.print("Error: No tiers found in chain configuration.")
-            raise typer.Exit(1)
+        result = run_cascade(prompt, chain, chain_config, ledger)
 
         if json_out:
             output = {
-                "answer": final_answer,
-                "confidence": final_confidence,
-                "tier_index": final_tier_index,
-                "model": final_model
+                "answer": result.answer,
+                "confidence": result.confidence,
+                "tier_index": result.tier_index,
+                "model": result.model,
             }
             console.print(json.dumps(output, indent=2))
         else:
-            title = f"Answer from Tier {final_tier_index} ({final_model})"
-            body = final_answer
+            title = f"Answer from Tier {result.tier_index} ({result.model})"
             panel = Panel(
-                body,
+                result.answer,
                 title=title,
-                subtitle=f"Confidence: {final_confidence:.2f}",
+                subtitle=f"Confidence: {result.confidence:.2f}",
                 border_style="green"
             )
             console.print(panel)

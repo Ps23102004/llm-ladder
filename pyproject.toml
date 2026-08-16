@@ -16,8 +16,12 @@ dependencies = [
     "pyyaml"
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp"]
+
 [project.scripts]
 ladder = "llm_ladder.cli:app"
+ladder-mcp = "llm_ladder.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["llm_ladder"]

@@ -46,6 +46,29 @@ View aggregated performance statistics and estimated savings:
 ladder stats
 ```
 
+## Web
+
+A self-contained, zero-dependency site in `web/` — no server needed:
+
+- **`index.html`** — pitch page with a visual walkthrough of the confidence-gated escalation flow.
+- **`stats.html`** — paste your `~/.llm-ladder/ledger.jsonl` contents and get a live dashboard: savings %, tier breakdown, recent runs. Parsing happens entirely in your browser.
+
+## MCP
+
+```bash
+pip install -e ".[mcp]"
+```
+
+Exposes `ladder_run` and `ladder_chains` as MCP tools — attach the confidence-gated cascade to Claude Desktop, Claude Code, or any MCP client:
+
+```json
+{
+  "mcpServers": {
+    "llm-ladder": { "command": "ladder-mcp" }
+  }
+}
+```
+
 ## Why This Exists
 
 Local LLM inference involves a direct trade-off between model size and latency/cost. Large models (e.g., 70B parameters) provide higher accuracy but are extremely slow on consumer hardware. Smaller models (e.g., 7B parameters) are fast but prone to errors on complex tasks.
