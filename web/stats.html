@@ -19,6 +19,7 @@
 {"chain":"default","tier_index":1,"model":"qwen3.8:27b-mlx","confidence":1.0,"samples":3,"escalated":true,"duration_s":8.94,"used_last_tier":false,"timestamp":1786797471}
 {"chain":"default","tier_index":2,"model":"ornith:35b-q4_K_M","confidence":1.0,"samples":1,"escalated":true,"duration_s":19.26,"used_last_tier":true,"timestamp":1786797610}
 {"chain":"advanced","tier_index":2,"model":"ornith:35b-q4_K_M","confidence":1.0,"samples":1,"escalated":true,"duration_s":22.71,"used_last_tier":true,"timestamp":1786797784}</textarea><div class="input-actions"><span id="status" aria-live="polite">Demo ledger loaded — 5 entries.</span><button class="parse" id="parse-button" type="button">Parse ledger</button></div></section>
+  <section class="input-card" id="filter-card" aria-labelledby="filter-title" style="margin-top:16px;display:none"><div class="input-top"><h2 id="filter-title">Filter</h2><span id="filter-count"></span></div><div style="display:flex;gap:12px;flex-wrap:wrap"><label style="flex:1;min-width:140px;font-size:.8rem;font-weight:700;color:var(--muted)">Chain<select id="filter-chain" style="display:block;width:100%;margin-top:6px;padding:9px;border:1px solid #cbd2e8;border-radius:8px;background:#fbfcff;color:#242d55;font-size:.85rem"></select></label><label style="flex:1;min-width:140px;font-size:.8rem;font-weight:700;color:var(--muted)">Tier<select id="filter-tier" style="display:block;width:100%;margin-top:6px;padding:9px;border:1px solid #cbd2e8;border-radius:8px;background:#fbfcff;color:#242d55;font-size:.85rem"></select></label><label style="flex:1;min-width:140px;font-size:.8rem;font-weight:700;color:var(--muted)">Model<select id="filter-model" style="display:block;width:100%;margin-top:6px;padding:9px;border:1px solid #cbd2e8;border-radius:8px;background:#fbfcff;color:#242d55;font-size:.85rem"></select></label></div></section>
   <section class="metrics" aria-label="Ledger summary"><article class="metric primary"><span class="metric-label">Estimated savings</span><strong class="metric-value" id="savings">60.0%</strong><span class="metric-detail" id="saved-detail">3 of 5 runs stopped before the final tier</span></article><article class="metric"><span class="metric-label">Average duration</span><strong class="metric-value" id="avg-duration">10.8s</strong><span class="metric-detail">Time recorded per ledger entry</span></article><article class="metric"><span class="metric-label">Total recorded entries</span><strong class="metric-value" id="total-runs">5</strong><span class="metric-detail">Across the pasted ledger</span></article></section>
   <section class="grid"><article class="panel"><h2>Runs by tier</h2><p class="panel-subtitle">Every invocation recorded in the ledger.</p><div class="bars" id="tier-bars"></div></article><article class="panel"><h2>Most recent entries</h2><p class="panel-subtitle">Sorted by timestamp, newest first.</p><div class="table-wrap"><table class="ledger-table"><thead><tr><th>Time</th><th>Tier</th><th>Model</th><th>Confidence</th><th>Duration</th><th>Final tier</th></tr></thead><tbody id="recent-rows"></tbody></table></div></article></section></main>
   <footer><div class="shell"><span>llm-ladder · confidence-gated local inference</span><a href="index.html">How the ladder works</a></div></footer>
@@ -26,7 +27,23 @@
     (function () {
       const fields = ["chain","tier_index","model","confidence","samples","escalated","duration_s","used_last_tier","timestamp"];
       const input = document.getElementById("ledger-input"), status = document.getElementById("status"), bars = document.getElementById("tier-bars"), rows = document.getElementById("recent-rows");
+      const filterCard = document.getElementById("filter-card"), filterCount = document.getElementById("filter-count");
+      const filterChain = document.getElementById("filter-chain"), filterTier = document.getElementById("filter-tier"), filterModel = document.getElementById("filter-model");
+      let allEntries = [];
       const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]);
+      function fillSelect(select, values, label) {
+        select.innerHTML = `<option value="">All ${label}</option>` + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      }
+      function applyFilters() {
+        const chain = filterChain.value, tier = filterTier.value, model = filterModel.value;
+        const filtered = allEntries.filter(e =>
+          (!chain || e.chain === chain) &&
+          (!tier || String(e.tier_index) === tier) &&
+          (!model || e.model === model)
+        );
+        filterCount.textContent = `${filtered.length} of ${allEntries.length} entries shown`;
+        renderMetrics(filtered);
+      }
       function formatTime(seconds) { const date = new Date(Number(seconds) * 1000); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
       function parseLedger() {
         const lines = input.value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -40,11 +57,18 @@
           if (!Number.isFinite(Number(entry.tier_index)) || !Number.isFinite(Number(entry.duration_s)) || !Number.isFinite(Number(entry.timestamp))) { showError(`Line ${i + 1} has an invalid tier, duration, or timestamp.`); return; }
           entries.push(entry);
         }
-        render(entries); status.className = ""; status.textContent = `${entries.length} valid ${entries.length === 1 ? "entry" : "entries"} parsed locally.`;
+        allEntries = entries;
+        fillSelect(filterChain, [...new Set(entries.map(e => e.chain))].sort(), "chains");
+        fillSelect(filterTier, [...new Set(entries.map(e => String(e.tier_index)))].sort((a,b) => a-b), "tiers");
+        fillSelect(filterModel, [...new Set(entries.map(e => e.model))].sort(), "models");
+        filterCard.style.display = "";
+        applyFilters();
+        status.className = ""; status.textContent = `${entries.length} valid ${entries.length === 1 ? "entry" : "entries"} parsed locally.`;
       }
       function showError(message) { status.className = "error"; status.textContent = message; }
-      function render(entries) {
+      function renderMetrics(entries) {
         const total = entries.length, saved = entries.filter(entry => entry.used_last_tier === false).length;
+        if (!total) { document.getElementById("savings").textContent = "—"; document.getElementById("saved-detail").textContent = "No entries match this filter."; document.getElementById("avg-duration").textContent = "—"; document.getElementById("total-runs").textContent = "0"; bars.innerHTML = '<p class="empty-chart">No valid entries to chart.</p>'; rows.innerHTML = ""; return; }
         const avg = entries.reduce((sum, entry) => sum + Number(entry.duration_s), 0) / total;
         document.getElementById("savings").textContent = `${(saved / total * 100).toFixed(1)}%`;
         document.getElementById("saved-detail").textContent = `${saved} of ${total} ${total === 1 ? "run" : "runs"} stopped before the final tier`;
@@ -55,7 +79,9 @@
         bars.innerHTML = tierIds.map(tier => `<div class="bar-row"><span>Tier ${tier}</span><div class="track"><div class="fill" style="width:${counts[tier] / max * 100}%"></div></div><strong>${counts[tier]}</strong></div>`).join("") || '<p class="empty-chart">No valid entries to chart.</p>';
         rows.innerHTML = entries.slice().sort((a,b) => Number(b.timestamp) - Number(a.timestamp)).slice(0,8).map(entry => `<tr><td>${formatTime(entry.timestamp)}</td><td><span class="tier-pill">${escapeHtml(entry.tier_index)}</span></td><td title="${escapeHtml(entry.model)}">${escapeHtml(entry.model)}</td><td>${Number(entry.confidence).toFixed(2)}</td><td>${Number(entry.duration_s).toFixed(2)}s</td><td class="${entry.used_last_tier ? "no" : "yes"}">${entry.used_last_tier ? "Yes" : "No"}</td></tr>`).join("");
       }
-      document.getElementById("parse-button").addEventListener("click", parseLedger); parseLedger();
+      document.getElementById("parse-button").addEventListener("click", parseLedger);
+      [filterChain, filterTier, filterModel].forEach(sel => sel.addEventListener("change", applyFilters));
+      parseLedger();
     }());
   </script>
 </body>
