@@ -10,6 +10,7 @@ from llm_ladder.ollama_client import OllamaConnectionError, OllamaModelNotFoundE
 from llm_ladder.ledger import Ledger
 from llm_ladder.engine import run_cascade
 from llm_ladder.benchmark import run_benchmark
+from llm_ladder.digest import DigestError, DigestOptions, run_digest, to_markdown
 
 app = typer.Typer()
 console = Console()
@@ -149,6 +150,111 @@ def benchmark(
         table.add_row(r.model, "ok", tps, quality)
 
     console.print(table)
+
+@app.command()
+def digest(
+    path: str = typer.Argument(".", help="Local git repo to digest"),
+    releases: int = typer.Option(3, "--releases", "-n", help="Number of recent tags to digest"),
+    range_: str = typer.Option(None, "--range", help="Explicit commit range, e.g. 'v1..v2'"),
+    file: str = typer.Option(None, "--file", help="Digest a text file instead of git history"),
+    lens: bool = typer.Option(False, "--lens/--no-lens", help="Add a multi-model disagreement diff"),
+    models: str = typer.Option(None, "--models", help="Comma-separated model names for --lens (default: auto-discover installed)"),
+    chain: str = typer.Option("default", "--chain", help="Name of the chain to use"),
+    since_last: bool = typer.Option(False, "--since-last", help="Only digest tags newer than this repo's last digest"),
+    md: str = typer.Option(None, "--md", help="Also write a Markdown export to this path"),
+    json_out: bool = typer.Option(False, "--json", help="Output result as JSON"),
+):
+    """Summarize a repo's history, then show where local models disagree about it."""
+    model_list = [m.strip() for m in models.split(",")] if models else None
+    opts = DigestOptions(
+        repo=path,
+        releases=releases,
+        range_=range_,
+        file_path=file,
+        lens=lens,
+        models=model_list,
+        chain=chain,
+        since_last=since_last,
+        md_path=md,
+        json_out=json_out,
+    )
+
+    def _report(progress: dict) -> None:
+        phase = progress.get("phase")
+        if phase == "map":
+            status.update(f"digesting {progress['tag']} ({progress['index']}/{progress['total']})…")
+        elif phase == "rollup":
+            status.update("combining release summaries…")
+        elif phase == "lens":
+            status.update(f"lens: {progress['model']} ({progress['index']}/{progress['total']})…")
+        elif phase == "judge":
+            status.update("judging model disagreement…")
+
+    try:
+        with console.status("digesting…") as status:
+            result = run_digest(opts, report_progress=_report)
+    except DigestError as e:
+        error_console.print(f"[bold red]Digest Error:[/bold red] {e}")
+        raise typer.Exit(1)
+    except OllamaModelNotFoundError as e:
+        error_console.print(f"[bold red]Model Not Found:[/bold red] {e}")
+        raise typer.Exit(1)
+    except OllamaConnectionError as e:
+        error_console.print(f"[bold red]Ollama Connection Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+    if md:
+        with open(md, "w", encoding="utf-8") as f:
+            f.write(to_markdown(result))
+
+    if json_out:
+        output = {
+            "verdict": result.verdict,
+            "repo": result.repo,
+            "releases": [
+                {"tag": r.tag, "prev": r.prev, "summary": r.summary, "tier_index": r.tier_index, "confidence": r.confidence}
+                for r in result.releases
+            ],
+            "lens": None if result.lens is None else {
+                "takes": [{"model": t.model, "take": t.take, "error": t.error} for t in result.lens.takes],
+                "skipped": result.lens.skipped,
+                "consensus": result.lens.consensus,
+                "disagreements": result.lens.disagreements,
+                "lens_verdict": result.lens.lens_verdict,
+                "note": result.lens.note,
+            },
+            "generated_at": result.generated_at,
+        }
+        console.print(json.dumps(output, indent=2))
+        return
+
+    panel = Panel(
+        result.verdict or "(no verdict)",
+        title=f"Digest — {result.repo}",
+        border_style="red",
+    )
+    console.print(panel)
+
+    for r in result.releases:
+        heading = r.tag + (f" (since {r.prev})" if r.prev else "")
+        console.print(f"\n[bold]{heading}[/bold]")
+        console.print(r.summary)
+
+    if result.lens is not None:
+        console.print("\n[bold]Model lens[/bold]")
+        if result.lens.note:
+            console.print(f"[yellow]{result.lens.note}[/yellow]")
+        if result.lens.lens_verdict:
+            console.print(f"[bold]{result.lens.lens_verdict}[/bold]")
+        for c in result.lens.consensus:
+            console.print(f"  [green]consensus:[/green] {c}")
+        for d_ in result.lens.disagreements:
+            console.print(f"  [red]disagreement:[/red] {d_}")
+        for model, reason in result.lens.skipped:
+            console.print(f"  [dim]skipped {model}: {reason}[/dim]")
+        for t in result.lens.takes:
+            if t.error:
+                console.print(f"  [red]failed {t.model}:[/red] {t.error}")
 
 @app.command()
 def serve():

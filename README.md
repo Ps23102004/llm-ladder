@@ -69,11 +69,32 @@ paste-or-load-your-own-file pattern as the ledger dashboard).
 time-to-first-token), not a verified hardware measurement — labeled as such
 everywhere it appears.
 
+### Digest
+
+```bash
+ladder digest [PATH] [--releases N] [--range v1..v2] [--file doc.txt] \
+  [--lens] [--models m1,m2] [--since-last] [--md out.md] [--json]
+```
+
+Summarizes a local git repo's recent history — the last N tags (map-reduce
+over each release, then a roll-up cascade call), an explicit commit range, a
+plain text file, or the last 50 commits when there are no tags — into a
+one-line VERDICT plus per-release bullets, prefixing anything that reads as a
+breaking change with `BREAKING:`. Add `--lens` to fan the same material out
+to every Ollama model you have installed (auto-discovered, never hardcoded)
+and get a judge pass reconciling where they genuinely disagree in
+interpretation, not just wording. `--since-last` tracks the last digested
+tag per repo in `~/.llm-ladder/digest_state.json`, so `ladder digest
+--since-last --md digest.md` is cron-safe out of the box. RAM-managed the
+same way `ladder benchmark` is — models are unloaded and memory-checked
+before each lens call so a 30B model never stacks against the last one.
+
 ## Web
 
 A self-contained, zero-dependency site in `web/` — no server needed:
 
 - **`index.html`** — pitch page with a visual walkthrough of the confidence-gated escalation flow.
+- **`digest.html`** — run `ladder digest` from the browser (requires `ladder serve`): repo path, release count, and an optional perspective lens, with live progress polling.
 - **`stats.html`** — load your `~/.llm-ladder/ledger.jsonl` (file picker, drag-and-drop, or paste) and get a live dashboard: savings %, tier breakdown, recent runs, with chain/tier/model filters. Parsing happens entirely in your browser.
 - **`benchmark.html`** — load your `~/.llm-ladder/benchmark.jsonl` and get a ranked leaderboard across speed and all 8 quality categories, filterable per category.
 

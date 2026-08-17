@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="A release digest with a local multi-model perspective lens.">
+  <title>Digest — llm-ladder</title>
+  <style>
+    /* red used in exactly 3 places: verdict seal, active-nav underline, disagreement-card left border */
+    :root { --ink:#0e0e0e; --ink-2:#161616; --paper:#f4f2ed; --grey:#8f8d86; --grey-dim:#54524d; --line:#2a2a28; --red:#c8102e; --red-deep:#8f0b20; --shadow:0 24px 60px rgba(0,0,0,.55); --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { min-height:100vh; margin:0; color:var(--paper); background:var(--ink); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    a { color:inherit; text-decoration:none; }
+    a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible { outline:2px solid var(--paper); outline-offset:3px; }
+    .shell { width:min(1120px,calc(100% - 40px)); margin:auto; }
+    .site-header { height:76px; display:flex; align-items:center; justify-content:space-between; gap:24px; border-bottom:1px solid var(--line); }
+    .brand { display:inline-flex; align-items:center; gap:10px; font-weight:800; letter-spacing:-.045em; font-size:1.16rem; }
+    .mark { display:grid; place-items:center; width:29px; height:29px; border:1px solid var(--paper); color:var(--paper); font:700 15px/1 var(--mono); }
+    nav { display:flex; gap:7px; align-items:center; }
+    nav a { position:relative; color:var(--grey); font-size:.91rem; font-weight:700; padding:8px 12px; transition:color .2s ease; }
+    nav a:hover { color:var(--paper); }
+    nav a[aria-current="page"] { color:var(--paper); }
+    nav a[aria-current="page"]::after { content:""; position:absolute; right:12px; bottom:2px; left:12px; border-bottom:2px solid var(--red); }
+    .page-head { padding:50px 0 42px; display:flex; justify-content:space-between; gap:36px; align-items:end; }
+    .eyebrow { color:var(--grey-dim); font:700 .72rem var(--mono); text-transform:uppercase; letter-spacing:.14em; }
+    h1 { margin:14px 0 0; color:var(--paper); font-size:clamp(2.6rem,7vw,5rem); font-weight:900; letter-spacing:-.06em; line-height:.93; }
+    .page-head p { max-width:410px; margin:0; color:var(--grey); font-size:.96rem; }
+    .labeled-section { position:relative; padding-left:36px; }
+    .vertical-label { position:absolute; top:0; bottom:0; left:0; display:flex; align-items:center; color:var(--grey-dim); font:700 .72rem var(--mono); text-transform:uppercase; letter-spacing:.14em; writing-mode:vertical-rl; text-orientation:mixed; }
+    .card { position:relative; overflow:hidden; border:1px solid var(--line); background:var(--ink-2); box-shadow:var(--shadow); }
+    .blade-reveal { animation:blade-wipe 480ms cubic-bezier(.7,0,.2,1) both; animation-delay:calc(var(--i, 0) * 80ms); }
+    .blade-reveal::after { content:""; position:absolute; z-index:2; top:0; bottom:0; left:0; width:1px; pointer-events:none; background:var(--red); animation:blade-edge 480ms cubic-bezier(.7,0,.2,1) both; animation-delay:calc(var(--i, 0) * 80ms); will-change:left; }
+    .command-panel { padding:24px; }
+    .command-form { display:grid; grid-template-columns:minmax(0,1fr) 120px auto; gap:12px; align-items:end; }
+    .field { display:grid; gap:7px; color:var(--grey-dim); font:700 .72rem var(--mono); text-transform:uppercase; letter-spacing:.1em; }
+    input,select { width:100%; min-height:44px; border:1px solid var(--line); border-radius:0; padding:0 12px; color:var(--paper); background:var(--ink); font:400 .9rem system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; transition:border-color .2s ease,color .2s ease; }
+    input:hover,select:hover,input:focus,select:focus { border-color:var(--grey); outline:0; }
+    select option { color:var(--paper); background:var(--ink); }
+    .lens-field { display:flex; min-height:44px; align-items:center; gap:9px; color:var(--paper); font:700 .78rem system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; text-transform:none; letter-spacing:0; white-space:nowrap; }
+    .lens-field input { width:16px; min-height:16px; margin:0; accent-color:var(--paper); }
+    .button { min-height:44px; padding:0 18px; border:1px solid var(--paper); border-radius:0; color:var(--ink); background:var(--paper); font:800 .87rem system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; cursor:pointer; transition:color .2s ease,background .2s ease,border-color .2s ease; }
+    .button:hover { color:var(--paper); background:var(--ink); }
+    .button:disabled { cursor:not-allowed; opacity:.5; }
+    #status { display:block; min-height:1.25rem; margin-top:12px; color:var(--grey); font:.78rem var(--mono); }
+    #status.error { color:var(--paper); }
+    #digest-output { display:none; padding-top:28px; padding-bottom:62px; }
+    .verdict { display:flex; align-items:flex-start; justify-content:space-between; gap:26px; padding:31px; }
+    .verdict-copy { min-width:0; }
+    .verdict-label,.section-title { margin:0 0 13px; color:var(--grey-dim); font:700 .72rem var(--mono); text-transform:uppercase; letter-spacing:.14em; }
+    .verdict-text { margin:0; max-width:900px; color:var(--paper); font-size:clamp(1.65rem,3.8vw,3.2rem); font-weight:900; letter-spacing:-.052em; line-height:1.02; white-space:pre-wrap; }
+    .seal { flex:0 0 auto; width:56px; height:56px; color:var(--red); animation:seal-stamp 240ms cubic-bezier(.2,.8,.3,1) both; }
+    .digest-grid { display:grid; grid-template-columns:1.2fr .8fr; gap:26px; margin-top:28px; }
+    #digest-output.no-lens .digest-grid { grid-template-columns:1fr; }
+    .section-body { display:grid; gap:12px; }
+    .release-card { padding:20px; }
+    .release-top { display:flex; justify-content:space-between; gap:16px; align-items:baseline; margin-bottom:12px; }
+    .tag { color:var(--paper); font:700 .82rem var(--mono); }
+    .prev { color:var(--grey-dim); font:.72rem var(--mono); }
+    .release-summary { margin:0; color:var(--paper); font-size:.92rem; white-space:pre-wrap; }
+    .summary-line { display:block; }
+    .breaking-chip { display:inline-block; padding:2px 5px; color:var(--paper); background:var(--red-deep); font:700 .72rem/1.35 var(--mono); }
+    .release-meta { margin:16px 0 0; color:var(--grey-dim); font:.72rem var(--mono); }
+    .lens-panel { padding:20px; }
+    .model-chips { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:20px; }
+    .model-chip { padding:4px 7px; border:1px solid var(--line); color:var(--grey); font:.72rem var(--mono); }
+    .model-chip.skipped { color:var(--grey-dim); text-decoration:line-through; }
+    .consensus-title { margin:0 0 9px; color:var(--grey-dim); font:700 .72rem var(--mono); text-transform:uppercase; letter-spacing:.12em; }
+    .consensus { margin:0 0 22px; padding-left:18px; color:var(--grey); font-size:.85rem; }
+    .consensus li + li { margin-top:7px; }
+    .disagreement-card { padding:14px 0 14px 14px; border-left:3px solid var(--red); color:var(--paper); font-size:.87rem; }
+    .empty-lens { margin:0; color:var(--grey); font-size:.85rem; }
+    footer { border-top:1px solid var(--line); padding:25px 0 35px; color:var(--grey-dim); font-size:.79rem; }
+    footer .shell { display:flex; justify-content:space-between; gap:18px; }
+    footer a { color:var(--grey); transition:color .2s ease; }
+    footer a:hover { color:var(--paper); }
+    @keyframes blade-wipe { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+    @keyframes blade-edge { from { left:0; opacity:1; } to { left:100%; opacity:0; } }
+    @keyframes seal-stamp { 0% { transform:scale(1.6) rotate(-6deg); opacity:0; } 72% { transform:scale(1.09) rotate(-2deg); opacity:1; } 100% { transform:scale(1) rotate(-2deg); opacity:1; } }
+    @media (max-width:760px) { .page-head { padding:32px 0 30px; display:block; } .page-head p { margin-top:18px; } .command-form { grid-template-columns:1fr 1fr; } .command-form > :first-child { grid-column:1 / -1; } .digest-grid { grid-template-columns:1fr; } }
+    @media (max-width:520px) { .shell { width:min(100% - 28px,1120px); } .site-header { height:auto; min-height:66px; padding:13px 0; align-items:flex-start; } nav { justify-content:flex-end; flex-wrap:wrap; gap:0; } nav a { padding:6px 8px; font-size:.8rem; } .brand { font-size:1rem; } .mark { width:26px; height:26px; } .command-form { grid-template-columns:1fr; } .command-form > :first-child { grid-column:auto; } .button { width:100%; } .labeled-section { padding-left:27px; } .verdict { padding:20px; } .seal { width:44px; height:44px; } footer .shell { flex-direction:column; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="shell site-header"><a class="brand" href="index.html" aria-label="llm-ladder home"><span class="mark" aria-hidden="true">↗</span>llm-ladder</a><nav aria-label="Primary navigation"><a href="index.html">How it works</a><a href="agent.html">Agent</a><a href="digest.html" aria-current="page">Digest</a><a href="stats.html">Ledger stats</a><a href="benchmark.html">Benchmarks</a></nav></header>
+  <main class="shell">
+    <section class="page-head"><div><span class="eyebrow">Release intelligence</span><h1>Digest the delta.</h1></div><p>Read the recent shape of a repository, then bring a local model roster to the parts that deserve a second opinion.</p></section>
+    <section class="labeled-section" aria-labelledby="command-title"><span class="vertical-label" aria-hidden="true">Command</span><div class="card command-panel">
+      <h2 id="command-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Create a release digest</h2>
+      <form class="command-form" id="digest-form"><label class="field" for="repo-path">Repository path<input id="repo-path" name="path" type="text" value="." autocomplete="off" required></label><label class="field" for="release-count">Releases<select id="release-count" name="releases"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></label><label class="field lens-field" for="lens"><input id="lens" name="lens" type="checkbox">Perspective lens</label><button class="button" id="digest-button" type="submit">Digest</button></form>
+      <span id="status" role="status" aria-live="polite"></span>
+    </div></section>
+    <section id="digest-output" aria-live="polite">
+      <section class="card verdict blade-reveal" style="--i:0" aria-labelledby="verdict-title"><div class="verdict-copy"><p class="verdict-label">Verdict</p><h2 class="verdict-text" id="verdict-title"></h2></div><svg class="seal" viewBox="0 0 56 56" aria-label="Verdict seal" role="img"><rect x="5" y="5" width="46" height="46" fill="none" stroke="currentColor" stroke-width="4"/><rect x="14" y="14" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"/></svg></section>
+      <div class="digest-grid">
+        <section class="labeled-section" aria-labelledby="changes-title"><span class="vertical-label" aria-hidden="true">Releases</span><h2 class="section-title" id="changes-title">What changed</h2><div class="section-body" id="release-list"></div></section>
+        <section class="labeled-section" id="lens-section" aria-labelledby="lens-title"><span class="vertical-label" aria-hidden="true">Lens</span><h2 class="section-title" id="lens-title">Where models disagree</h2><div class="section-body" id="lens-content"></div></section>
+      </div>
+    </section>
+  </main>
+  <footer><div class="shell"><span>llm-ladder · confidence-gated local inference</span><a href="stats.html">Ledger dashboard</a></div></footer>
+  <script>
+    (function () {
+      const digestForm = document.getElementById("digest-form"), repoPath = document.getElementById("repo-path"), releaseCount = document.getElementById("release-count"), lens = document.getElementById("lens"), digestButton = document.getElementById("digest-button");
+      const status = document.getElementById("status"), digestOutput = document.getElementById("digest-output"), verdictTitle = document.getElementById("verdict-title"), releaseList = document.getElementById("release-list"), lensSection = document.getElementById("lens-section"), lensContent = document.getElementById("lens-content");
+      let digestRun = 0;
+      const delay = milliseconds => new Promise(resolve => window.setTimeout(resolve, milliseconds));
+
+      async function fetchJson(url, options) {
+        let response;
+        try { response = await fetch(url, options); } catch (_) { throw new Error("Could not reach the local agent server."); }
+        let body = null;
+        try { body = await response.json(); } catch (_) { body = null; }
+        if (!response.ok) {
+          const detail = body && (body.error || body.message || body.detail);
+          throw new Error(detail ? String(detail) : `The local server returned ${response.status}.`);
+        }
+        if (body === null) throw new Error("The local server returned an invalid JSON response.");
+        return body;
+      }
+
+      function setMessage(message, isError) { status.className = isError ? "error" : ""; status.textContent = message; }
+      function makeText(tag, className, value) { const element = document.createElement(tag); if (className) element.className = className; element.textContent = value == null ? "" : String(value); return element; }
+      function progressText(progress) {
+        if (!progress) return "digesting…";
+        if (progress.phase === "map") return `digesting ${progress.tag} (${progress.index}/${progress.total})…`;
+        if (progress.phase === "rollup") return "rolling up releases…";
+        if (progress.phase === "lens") return `lens: ${progress.model} (${progress.index}/${progress.total})…`;
+        if (progress.phase === "judge") return "judging…";
+        return "digesting…";
+      }
+      function appendSummary(summary, parent) {
+        String(summary || "No summary provided.").split(/\r?\n/).forEach(line => {
+          const clean = line.trim().replace(/^[-*•]\s*/, "");
+          const block = document.createElement("span"); block.className = "summary-line";
+          if (clean.startsWith("BREAKING:")) block.appendChild(makeText("span", "breaking-chip", line));
+          else block.textContent = line || " ";
+          parent.appendChild(block);
+        });
+      }
+      function renderReleases(releases) {
+        releaseList.replaceChildren();
+        (releases || []).forEach((release, index) => {
+          const card = document.createElement("article"), top = document.createElement("div"), summary = document.createElement("p"), meta = document.createElement("p");
+          card.className = "card release-card blade-reveal"; card.style.setProperty("--i", index + 1); top.className = "release-top"; summary.className = "release-summary"; meta.className = "release-meta";
+          top.append(makeText("span", "tag", release.tag || "untagged"), makeText("span", "prev", release.prev || ""));
+          appendSummary(release.summary, summary); meta.textContent = `tier ${release.tier_index == null ? "—" : release.tier_index} · confidence ${Number.isFinite(Number(release.confidence)) ? Number(release.confidence).toFixed(2) : "—"}`;
+          card.append(top, summary, meta); releaseList.appendChild(card);
+        });
+      }
+      function renderLens(result) {
+        const lensResult = result.lens;
+        lensSection.hidden = !lensResult;
+        digestOutput.classList.toggle("no-lens", !lensResult);
+        lensContent.replaceChildren();
+        if (!lensResult) return;
+        const chips = document.createElement("div"); chips.className = "model-chips";
+        (lensResult.takes || []).forEach(item => {
+          if (item.error) { const chip = makeText("span", "model-chip skipped", item.model || "unknown"); chip.title = `Failed: ${item.error}`; chips.appendChild(chip); return; }
+          chips.appendChild(makeText("span", "model-chip", item.model || "unknown"));
+        });
+        (lensResult.skipped || []).forEach(item => { const chip = makeText("span", "model-chip skipped", item[0] || "unknown"); chip.title = item[1] || "Skipped"; chips.appendChild(chip); });
+        lensContent.appendChild(chips);
+        const consensusTitle = makeText("p", "consensus-title", "Consensus"), consensus = document.createElement("ul"); consensus.className = "consensus";
+        (lensResult.consensus || []).forEach(item => consensus.appendChild(makeText("li", "", item)));
+        lensContent.append(consensusTitle, consensus);
+        const disagreements = lensResult.disagreements || [];
+        if (disagreements.length) disagreements.forEach((item, index) => { const card = makeText("article", "disagreement-card blade-reveal", item); card.style.setProperty("--i", index + 1); lensContent.appendChild(card); });
+        else lensContent.appendChild(makeText("p", "empty-lens", lensResult.lens_verdict || lensResult.note || "No material disagreement."));
+      }
+      function renderDigest(result) {
+        verdictTitle.textContent = result.verdict || "No verdict provided.";
+        renderReleases(result.releases); renderLens(result); digestOutput.style.display = "block";
+      }
+      async function pollDigest(jobId, runId) {
+        while (runId === digestRun) {
+          let job;
+          try { job = await fetchJson(`/api/jobs/${encodeURIComponent(jobId)}`); } catch (error) { setMessage(error.message, true); digestButton.disabled = false; return; }
+          if (job.state === "done") { renderDigest(job.result || {}); setMessage("Digest complete.", false); digestButton.disabled = false; return; }
+          if (job.state === "error") { setMessage(job.error || "The digest job failed.", true); digestButton.disabled = false; return; }
+          setMessage(progressText(job.progress), false);
+          await delay(1500);
+        }
+      }
+      digestForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const path = repoPath.value.trim();
+        if (!path) { setMessage("Enter a repository path before digesting.", true); repoPath.focus(); return; }
+        const runId = ++digestRun;
+        digestButton.disabled = true; digestOutput.style.display = "none"; releaseList.replaceChildren(); lensContent.replaceChildren(); setMessage("Starting digest…", false);
+        let response;
+        try { response = await fetchJson("/api/digest", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({path, releases:Number(releaseCount.value), range:null, file:null, lens:lens.checked, models:null, chain:"default", since_last:false})}); }
+        catch (error) { if (runId === digestRun) { setMessage(error.message, true); digestButton.disabled = false; } return; }
+        if (runId !== digestRun) return;
+        if (!response.job_id) { setMessage("The local server did not return a digest job.", true); digestButton.disabled = false; return; }
+        setMessage("Digest started…", false); await pollDigest(response.job_id, runId);
+      });
+    }());
+  </script>
+</body>
+</html>

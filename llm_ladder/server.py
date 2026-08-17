@@ -17,6 +17,7 @@ from urllib.parse import unquote, urlsplit
 
 from llm_ladder import jobs
 from llm_ladder.config import ChainConfig, TierConfig, default_chains_path, load_chains
+from llm_ladder.digest import DigestOptions, run_digest
 from llm_ladder.github_client import fetch_open_issues
 from llm_ladder.model_config import ModelConfig, load_config, save_config
 from llm_ladder.nl_router import route_command
@@ -41,6 +42,7 @@ _STATIC_ROUTES = {
     "/": "index.html",
     "/index.html": "index.html",
     "/agent.html": "agent.html",
+    "/digest.html": "digest.html",
     "/stats.html": "stats.html",
     "/benchmark.html": "benchmark.html",
 }
@@ -82,6 +84,14 @@ def _triage_job(repo: str, chain_name: str, chain_config: ChainConfig, provider)
             results.append(dataclasses.asdict(result))
             report_progress({"completed": len(results), "total": len(issues), "results": results})
         return {"repo": repo, "results": results}
+
+    return _run
+
+
+def _digest_job(opts: DigestOptions) -> callable:
+    def _run(report_progress):
+        result = run_digest(opts, report_progress=report_progress)
+        return dataclasses.asdict(result)
 
     return _run
 
@@ -213,6 +223,34 @@ class Handler(BaseHTTPRequestHandler):
             repo = str(body.get("repo", ""))
             chain_name, chain_config, provider = _resolve_chain()
             job_id = jobs.start_job(_triage_job(repo, chain_name, chain_config, provider))
+            self._send_json(HTTPStatus.ACCEPTED, {"job_id": job_id})
+            return
+        if path == "/api/digest":
+            # No concurrency guard: two simultaneous --lens digests would
+            # interleave free_loaded_models() calls and race each other's
+            # memory checks, breaking the "never two large models at once"
+            # guarantee. Trusted-single-user-machine assumption (same as
+            # `serve` generally) — don't fire overlapping digest jobs.
+            body = self._read_json_body()
+            models = body.get("models")
+            try:
+                opts = DigestOptions(
+                    repo=str(body.get("path", ".")),
+                    releases=int(body.get("releases", 3)),
+                    range_=body.get("range"),
+                    file_path=body.get("file"),
+                    lens=bool(body.get("lens", False)),
+                    models=[str(m) for m in models] if models else None,
+                    chain=str(body.get("chain", "default")),
+                    since_last=bool(body.get("since_last", False)),
+                )
+            except (TypeError, ValueError) as exc:
+                raise _BadRequestError(f"invalid digest options: {exc}")
+            # DigestError from bad option combos or git failures surfaces via
+            # job polling, same as any other _triage_job-style failure — not
+            # raised synchronously here, since run_digest only runs once the
+            # background thread starts.
+            job_id = jobs.start_job(_digest_job(opts))
             self._send_json(HTTPStatus.ACCEPTED, {"job_id": job_id})
             return
         if path == "/api/models":
