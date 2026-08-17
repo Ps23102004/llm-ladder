@@ -35,6 +35,7 @@ WEB_DIR = (Path(__file__).resolve().parent.parent / "web").resolve()
 
 _ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 _ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"}
+_MAX_BODY_BYTES = 1 << 20  # 1 MiB, generous for a JSON command/model-config body
 
 _STATIC_ROUTES = {
     "/": "index.html",
@@ -119,6 +120,8 @@ class Handler(BaseHTTPRequestHandler):
             raise _BadRequestError("malformed Content-Length header")
         if length < 0:
             raise _BadRequestError("negative Content-Length header")
+        if length > _MAX_BODY_BYTES:
+            raise _BadRequestError(f"request body exceeds {_MAX_BODY_BYTES} bytes")
         raw = self.rfile.read(length) if length else b""
         return json.loads(raw or b"{}")
 
@@ -179,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/jobs/"):
             job_id = path[len("/api/jobs/"):]
             status = jobs.get_status(job_id)
-            code = HTTPStatus.NOT_FOUND if status["error"] == f"unknown job_id: {job_id}" else HTTPStatus.OK
+            code = HTTPStatus.NOT_FOUND if status["error"] == f"unknown or expired job_id: {job_id}" else HTTPStatus.OK
             self._send_json(code, status)
             return
         if path.startswith("/api/"):

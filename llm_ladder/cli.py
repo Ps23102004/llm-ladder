@@ -150,5 +150,21 @@ def benchmark(
 
     console.print(table)
 
+@app.command()
+def serve():
+    """Launch the local RepoTriage Agent web server.
+
+    Binds 127.0.0.1 only (see LLM_LADDER_PORT). No auth beyond that — any
+    other process on this machine can reach it. Trusted-single-user-machine
+    threat model; don't run on a shared host.
+    """
+    from llm_ladder.server import main  # local import: keeps `ladder run`/etc. fast to start
+
+    try:
+        main()
+    except OSError as e:
+        error_console.print(f"[bold red]Server Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
 if __name__ == "__main__":
     app()
