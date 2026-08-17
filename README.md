@@ -10,6 +10,15 @@
 pip install -e .
 ```
 
+### Running Tests
+
+```bash
+pip install pytest
+pytest
+```
+
+All model calls are mocked — the suite doesn't need Ollama running.
+
 ## Prerequisites
 
 1. [Ollama](https://ollama.com/) must be running locally.
@@ -22,11 +31,11 @@ pip install -e .
 Use the `run` command to process a prompt through the configured cascade.
 
 ```bash
-# Basic usage (uses default chain)
+# Basic usage (uses the "default" chain from chains.yaml)
 ladder run "What is the capital of France?"
 
-# Specify a custom chain
-ladder run "Explain quantum entanglement" --chain advanced
+# Specify a chain by name (add more chains to chains.yaml, then reference them here)
+ladder run "Explain quantum entanglement" --chain default
 
 # Get JSON output for programmatic processing
 ladder run "Translate: Hello" --json

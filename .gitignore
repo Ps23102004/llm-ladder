@@ -37,3 +37,4 @@ htmlcov/
 *.swo
 .DS_Store
 .venv/
+docs/superpowers/
