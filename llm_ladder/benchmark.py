@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, asdict, field
 
 from llm_ladder.ollama_client import chat, OllamaConnectionError
-from llm_ladder.benchmark_discovery import discover_models, check_memory_safety, stop_model
+from llm_ladder.benchmark_discovery import discover_models, check_memory_safety, stop_model, free_loaded_models
 from llm_ladder.benchmark_hardware import capture_hardware_snapshot, estimate_load_bandwidth_gbps
 from llm_ladder.benchmark_graders import (
     load_benchmark_tasks, load_rag_corpus,
@@ -132,6 +132,11 @@ def run_benchmark(
     discovered = discover_models()
     if models:
         discovered = [m for m in discovered if m.name in models]
+
+    # Free RAM held by any already-loaded models before running memory
+    # checks, so a stale loaded model from an earlier session doesn't
+    # cause an otherwise-fittable model to be skipped.
+    free_loaded_models()
 
     results: list[ModelBenchmarkResult] = []
     with open(output_path, "a", encoding="utf-8") as fh:

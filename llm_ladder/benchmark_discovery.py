@@ -66,6 +66,27 @@ def check_memory_safety(model_size_bytes: int) -> tuple[bool, str]:
     return True, "ok"
 
 
+def list_loaded_models() -> list[str]:
+    """Names of models Ollama currently has loaded in memory, via `ollama ps`."""
+    try:
+        proc = subprocess.run(["ollama", "ps"], capture_output=True, text=True, timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return []
+    if proc.returncode != 0:
+        return []
+    lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return []
+    return [line.split()[0] for line in lines[1:] if line.split()]
+
+
+def free_loaded_models() -> None:
+    """Best-effort: unload every currently-loaded Ollama model to maximize
+    available RAM before a benchmark run's memory checks. Never raises."""
+    for model in list_loaded_models():
+        stop_model(model)
+
+
 def stop_model(model: str) -> None:
     """Unloads a model from Ollama so its weights don't stack in memory
     across a benchmark run. Best-effort — never raises."""
