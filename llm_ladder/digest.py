@@ -257,7 +257,11 @@ def _release_prompt(tag: str, prev: str, shortstat: str, subjects: list[str]) ->
         f"Commit subjects:\n{subject_block}\n\n"
         "Write 2-4 plain-English bullets: what changed and why it matters to a "
         "user. Prefix any bullet that looks like a breaking change with "
-        "'BREAKING:'. No commit hashes, no git jargon."
+        "'BREAKING:'. No commit hashes, no git jargon. Do not invert the "
+        "direction of a change — if a commit subject says X was replaced by "
+        "Y, or switched to Z, say it that way round, not reversed. When "
+        "the direction is ambiguous, quote the relevant commit subject "
+        "directly rather than paraphrasing it."
     )
 
 
@@ -273,7 +277,8 @@ def _rollup_prompt(summaries: list[ReleaseSummary]) -> str:
         "Combine these per-release summaries into one digest, newest first.\n"
         "Start with exactly one line: 'VERDICT: <one sentence — the single "
         "most important thing across these releases>'. Then a short section "
-        f"per release.\n\n{sections}"
+        "per release. Preserve each summary's stated direction of change "
+        f"exactly — do not invert or restate it backwards.\n\n{sections}"
     )
 
 
@@ -286,7 +291,11 @@ def _single_chunk_prompt(material: str) -> str:
         "Summarize the following into a plain-English digest.\n"
         "Start with exactly one line: 'VERDICT: <one sentence — the single "
         "most important thing here>'. Then 2-6 bullets of detail. Prefix any "
-        f"bullet that looks like a breaking change with 'BREAKING:'.\n\n{material}"
+        "bullet that looks like a breaking change with 'BREAKING:'. Do not "
+        "invert the direction of a change — if the material says X was "
+        "replaced by Y, say it that way round, not reversed. When the "
+        f"direction is ambiguous, quote the source text directly rather than "
+        f"paraphrasing it.\n\n{material}"
     )
 
 

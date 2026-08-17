@@ -134,10 +134,11 @@
       }
       function appendSummary(summary, parent) {
         String(summary || "No summary provided.").split(/\r?\n/).forEach(line => {
-          const clean = line.trim().replace(/^[-*•]\s*/, "");
+          const displayLine = line.replace(/\*\*/g, "");
+          const clean = displayLine.trim().replace(/^[-*•\s]+/, "");
           const block = document.createElement("span"); block.className = "summary-line";
-          if (clean.startsWith("BREAKING:")) block.appendChild(makeText("span", "breaking-chip", line));
-          else block.textContent = line || " ";
+          if (clean.startsWith("BREAKING:")) block.appendChild(makeText("span", "breaking-chip", displayLine));
+          else block.textContent = displayLine || " ";
           parent.appendChild(block);
         });
       }
