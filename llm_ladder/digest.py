@@ -529,6 +529,16 @@ def _run_lens(
         free_loaded_models()
         ok, reason = check_memory_safety(size_bytes)
         if not ok:
+            # Memory reclaim after free_loaded_models() isn't always instant
+            # (observed live: available memory read as 4.2GB immediately
+            # after freeing an 8.8GB model, then 22.8GB moments later for
+            # the next check) — retry briefly before accepting the skip.
+            for _ in range(3):
+                time.sleep(1.0)
+                ok, reason = check_memory_safety(size_bytes)
+                if ok:
+                    break
+        if not ok:
             result.skipped.append((model, reason))
             continue
         start = time.perf_counter()

@@ -223,11 +223,20 @@ def test_validate_allows_file_alone_and_range_without_file():
 
 
 def _run_lens_with_roster(roster, tmp_path, safety=None, chat_side=None):
-    """Run _run_lens with discovery/frees/memory-safety/model calls patched."""
+    """Run _run_lens with discovery/frees/memory-safety/model/judge calls patched.
+
+    time.sleep is patched out too: a permanent memory-safety rejection
+    retries check_memory_safety a few times with real sleeps between
+    attempts in production, which would otherwise make a rejecting test
+    take several real seconds for no reason. run_cascade is stubbed so a
+    roster with >=2 successful takes (which triggers the judge) doesn't
+    hit a real cascade call.
+    """
     ledger = Ledger(path=str(tmp_path / "ledger.jsonl"))
     with (
         patch("llm_ladder.digest.discover_models", return_value=roster),
         patch("llm_ladder.digest.free_loaded_models", return_value=None),
+        patch("llm_ladder.digest.time.sleep", return_value=None),
         patch(
             "llm_ladder.digest.check_memory_safety",
             side_effect=safety or (lambda size: (True, "")),
@@ -235,6 +244,10 @@ def _run_lens_with_roster(roster, tmp_path, safety=None, chat_side=None):
         patch(
             "llm_ladder.digest.chat",
             side_effect=chat_side or (lambda model, prompt: _chat_response(f"take {model}")),
+        ),
+        patch(
+            "llm_ladder.digest.run_cascade",
+            return_value=_cascade_result("VERDICT: 2 of 2 agree\nCONSENSUS:\n- x\nDISAGREEMENTS:\n"),
         ),
     ):
         result = digest._run_lens(
@@ -274,6 +287,23 @@ def test_run_lens_memory_skip_leaves_model_out_of_takes(tmp_path):
     assert result.skipped == [("big", "needs 8 GB, 4 GB free")]
     assert [t.model for t in result.takes] == ["small"]
     assert chats == ["small"]
+
+
+def test_run_lens_retries_memory_check_before_giving_up(tmp_path):
+    # Regression: memory reclaim after free_loaded_models() isn't instant.
+    # A model rejected on the first check should still run if a retry
+    # within the same iteration reports enough memory.
+    calls = {"count": 0}
+
+    def safety(size):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return False, "needs 8 GB, 4 GB free"
+        return True, ""
+
+    result = _run_lens_with_roster([_model("a", 99), _model("b", 99)], tmp_path, safety=safety)
+    assert result.skipped == []
+    assert [t.model for t in result.takes] == ["a", "b"]
 
 
 def test_run_lens_degrades_when_memory_rejection_leaves_one_answer(tmp_path):
