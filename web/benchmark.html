@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <header class="shell site-header"><a class="brand" href="index.html" aria-label="llm-ladder home"><span class="mark" aria-hidden="true">↗</span>llm-ladder</a><nav aria-label="Primary navigation"><a href="index.html">How it works</a><a href="stats.html">Ledger stats</a><a href="benchmark.html" aria-current="page">Benchmarks</a></nav></header>
+  <header class="shell site-header"><a class="brand" href="index.html" aria-label="llm-ladder home"><span class="mark" aria-hidden="true">↗</span>llm-ladder</a><nav aria-label="Primary navigation"><a href="index.html">How it works</a><a href="agent.html">Agent</a><a href="stats.html">Ledger stats</a><a href="benchmark.html" aria-current="page">Benchmarks</a></nav></header>
   <main class="shell">
     <section class="page-head"><div><span class="eyebrow">Local model leaderboard</span><h1>Which model, at what.</h1></div><p>Paste or load your <code>~/.llm-ladder/benchmark.jsonl</code>. Nothing leaves this page: parsing and ranking happen entirely in your browser.</p></section>
 
@@ -76,6 +76,19 @@
         return c && c.total ? c.passed / c.total : 0;
       }
 
+      function qualityLabel(entry, category) {
+        // Mirrors categoryScore()'s category matching so the displayed
+        // Quality column always matches what the ranking is actually based on.
+        if (category === "speed") return entry.tokens_per_sec ? `${entry.tokens_per_sec.toFixed(1)} tok/s` : "—";
+        if (!category) {
+          const totalPassed = (entry.categories || []).reduce((s, c) => s + c.passed, 0);
+          const totalTasks = (entry.categories || []).reduce((s, c) => s + c.total, 0);
+          return totalTasks ? `${totalPassed}/${totalTasks}` : "—";
+        }
+        const c = (entry.categories || []).find(c => c.category === category);
+        return c && c.total ? `${c.passed}/${c.total}` : "—";
+      }
+
       function parseBenchmark() {
         const lines = input.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
         if (!lines.length) { showError("Paste or load at least one benchmark JSONL entry."); return; }
@@ -112,9 +125,7 @@
           .map(e => {
             const tps = e.tokens_per_sec ? e.tokens_per_sec.toFixed(1) : "—";
             const bw = e.load_bandwidth_estimate_gbps ? `${e.load_bandwidth_estimate_gbps.toFixed(2)} GB/s (est.)` : "—";
-            const totalPassed = (e.categories || []).reduce((s, c) => s + c.passed, 0);
-            const totalTasks = (e.categories || []).reduce((s, c) => s + c.total, 0);
-            const quality = totalTasks ? `${totalPassed}/${totalTasks}` : "—";
+            const quality = qualityLabel(e, category);
             return `<tr><td><span class="rank-badge">${ranks[e.model] || "—"}</span></td><td title="${escapeHtml(e.model)}">${escapeHtml(e.model)}</td><td>ok</td><td>${tps}</td><td>${bw}</td><td>${quality}</td></tr>`;
           })
           .join("");

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Triage GitHub repository issues with a confidence-gated local agent.">
+  <title>RepoTriage Agent — llm-ladder</title>
+  <style>
+    :root { --ink:#182046; --muted:#69718e; --line:#dfe3f1; --paper:#fff; --surface:#f7f8ff; --violet:#7047eb; --violet-dark:#5632c6; --indigo:#3446b8; --blue:#2876d7; --mint:#0eaa8c; --soft-violet:#f0edff; --shadow:0 18px 48px rgba(39,50,125,.12); --agent-lime:#c4e05a; --agent-pale:#eef7d8; --agent-violet-glow:rgba(112,71,235,.15); }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { min-height:100vh; margin:0; color:var(--ink); background:radial-gradient(circle at 82% 7%,var(--agent-violet-glow) 0,rgba(112,71,235,0) 34rem),linear-gradient(145deg,var(--agent-lime) 0%,#dceca1 38%,var(--agent-pale) 100%); background-attachment:fixed; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.5; }
+    a { color:inherit; text-decoration:none; }
+    a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid #5a9cff; outline-offset:3px; border-radius:6px; }
+    .shell { width:min(1120px,calc(100% - 40px)); margin:auto; }
+    .site-header { height:76px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { display:inline-flex; align-items:center; gap:10px; font-weight:800; letter-spacing:-.045em; font-size:1.16rem; }
+    .mark { display:grid; place-items:center; width:29px; height:29px; border-radius:9px; color:#fff; background:linear-gradient(140deg,var(--violet),var(--blue)); box-shadow:0 7px 15px rgba(92,69,221,.25); font-size:18px; }
+    nav { display:flex; gap:7px; align-items:center; }
+    nav a { color:var(--muted); font-size:.91rem; font-weight:700; padding:8px 12px; border-radius:8px; }
+    nav a:hover,nav a[aria-current="page"] { color:var(--violet-dark); background:var(--soft-violet); }
+    .page-head { padding:50px 0 34px; display:flex; justify-content:space-between; gap:36px; align-items:end; }
+    .eyebrow { display:inline-flex; align-items:center; gap:7px; color:var(--violet-dark); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; }
+    .eyebrow::before { content:""; width:18px; height:2px; background:var(--blue); }
+    h1 { font-size:clamp(2.35rem,5vw,3.85rem); letter-spacing:-.06em; line-height:1.02; margin:14px 0 0; }
+    .page-head p { max-width:430px; margin:0; color:var(--ink); opacity:.72; font-size:.96rem; }
+    .card { border-radius:18px; box-shadow:var(--shadow); }
+    .glass { position:relative; overflow:hidden; background:rgba(255,255,255,.55); -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%); border:1px solid rgba(255,255,255,.4); box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.72); }
+    .glass::before { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(130deg,rgba(255,255,255,.35),rgba(255,255,255,0) 43%); }
+    .glass > * { position:relative; z-index:1; }
+    .command-panel { padding:24px; transition:box-shadow .25s ease,transform .25s ease,background .25s ease; }
+    .command-panel:focus-within { background:rgba(255,255,255,.65); box-shadow:0 22px 58px rgba(39,50,125,.16),inset 0 1px 0 rgba(255,255,255,.78); }
+    .command-form { display:grid; grid-template-columns:1fr auto; gap:12px; }
+    .command-form label { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    input,select { width:100%; min-height:44px; border:1px solid rgba(52,70,184,.24); border-radius:10px; padding:0 13px; color:var(--ink); background:rgba(255,255,255,.68); font:inherit; transition:border-color .2s ease,background .2s ease,box-shadow .2s ease; }
+    input::placeholder { color:#747c98; }
+    input:hover,select:hover { border-color:rgba(52,70,184,.42); }
+    input:focus,select:focus { border-color:var(--violet); background:rgba(255,255,255,.86); box-shadow:0 0 0 3px rgba(112,71,235,.1); outline:0; }
+    .button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border:0; border-radius:9px; color:#fff; background:linear-gradient(125deg,var(--violet),var(--indigo)); box-shadow:0 10px 22px rgba(77,58,196,.25); font:800 .92rem inherit; cursor:pointer; transition:transform .2s ease,box-shadow .2s ease,filter .2s ease,opacity .2s ease; }
+    .button:hover { transform:translateY(-2px); filter:brightness(1.04); }
+    .button:disabled { cursor:not-allowed; opacity:.58; transform:none; filter:none; }
+    #status,#settings-status,#pull-status { display:block; min-height:1.25rem; margin-top:11px; color:var(--muted); font-size:.82rem; }
+    #status.error,#settings-status.error,#pull-status.error { color:#bb334f; font-weight:700; }
+    .workspace { display:grid; grid-template-columns:1.5fr .82fr; gap:18px; align-items:start; padding:18px 0 64px; }
+    .output-panel { min-height:210px; padding:24px; opacity:.88; transition:opacity .25s ease,transform .25s ease,background .25s ease; }
+    .output-panel.active { opacity:1; transform:translateY(-2px); }
+    .panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:18px; margin-bottom:18px; }
+    .panel-head h2 { margin:0; font-size:1rem; letter-spacing:-.02em; }
+    .panel-head span { color:var(--muted); font-size:.78rem; text-align:right; }
+    .empty-state { display:grid; min-height:135px; place-items:center; border:1px dashed rgba(52,70,184,.25); border-radius:13px; color:var(--muted); background:rgba(255,255,255,.28); text-align:center; font-size:.88rem; }
+    .answer { display:none; margin:0; padding:18px; border:1px solid rgba(52,70,184,.16); border-radius:13px; color:var(--ink); background:rgba(255,255,255,.5); white-space:pre-wrap; }
+    .answer.visible { display:block; animation:glass-in .3s ease both; }
+    .results { display:grid; gap:12px; }
+    .result-card { padding:17px; border:1px solid rgba(255,255,255,.52); border-radius:14px; background:rgba(255,255,255,.48); -webkit-backdrop-filter:blur(14px) saturate(150%); backdrop-filter:blur(14px) saturate(150%); box-shadow:0 10px 28px rgba(39,50,125,.08),inset 0 1px 0 rgba(255,255,255,.7); animation:glass-in .3s ease both; transition:transform .2s ease,background .2s ease,box-shadow .2s ease; }
+    .result-card:hover { transform:translateY(-2px); background:rgba(255,255,255,.62); box-shadow:0 14px 34px rgba(39,50,125,.12),inset 0 1px 0 rgba(255,255,255,.76); }
+    .result-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+    .issue-title { margin:0; color:var(--indigo); font-size:1rem; letter-spacing:-.02em; }
+    .badges { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+    .badge { display:inline-flex; align-items:center; min-height:23px; padding:2px 8px; border-radius:999px; color:var(--violet-dark); background:var(--soft-violet); font-size:.7rem; font-weight:800; white-space:nowrap; }
+    .badge.priority-high { color:#a52d49; background:#ffe8ee; }
+    .badge.priority-low { color:#167a66; background:#e4f8f1; }
+    .result-reasoning { margin:11px 0 0; color:#414a70; font-size:.86rem; }
+    .result-meta { display:flex; flex-wrap:wrap; gap:7px 16px; margin-top:12px; color:var(--muted); font-size:.75rem; }
+    .result-meta strong { color:var(--ink); }
+    .settings { padding:0 22px; }
+    .settings summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:21px 0; cursor:pointer; list-style:none; color:var(--indigo); font-size:.92rem; font-weight:800; }
+    .settings summary::-webkit-details-marker { display:none; }
+    .settings summary::after { content:"+"; display:grid; place-items:center; width:25px; height:25px; border-radius:50%; background:rgba(255,255,255,.58); color:var(--violet); font-size:1.1rem; transition:transform .2s ease,background .2s ease; }
+    .settings[open] summary::after { transform:rotate(45deg); background:var(--soft-violet); }
+    .settings-body { padding:0 0 22px; border-top:1px solid rgba(52,70,184,.12); }
+    .settings-intro { margin:16px 0 12px; color:var(--muted); font-size:.81rem; }
+    .mode-list { display:grid; gap:9px; }
+    .mode-option { border:1px solid rgba(52,70,184,.14); border-radius:12px; background:rgba(255,255,255,.3); transition:border-color .2s ease,background .2s ease; }
+    .mode-option:has(input[type="radio"]:checked) { border-color:rgba(112,71,235,.5); background:rgba(255,255,255,.52); }
+    .mode-choice { display:flex; align-items:flex-start; gap:10px; padding:12px; cursor:pointer; font-size:.83rem; font-weight:750; }
+    .mode-choice input { flex:0 0 auto; width:17px; min-height:17px; margin:2px 0 0; accent-color:var(--violet); }
+    .conditional { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows .28s ease,opacity .2s ease; }
+    .conditional.active { grid-template-rows:1fr; opacity:1; }
+    .conditional > .conditional-inner { min-height:0; overflow:hidden; padding:0 12px; }
+    .conditional.active > .conditional-inner { padding:0 12px 13px; }
+    .field { display:block; margin-top:9px; color:var(--muted); font-size:.76rem; font-weight:700; }
+    .field input,.field select { display:block; min-height:40px; margin-top:5px; font-size:.82rem; }
+    .result-filters { display:flex; gap:16px; flex-wrap:wrap; margin:-6px 0 16px; }
+    .result-filters .field { margin-top:0; }
+    .result-filters .field select { min-height:34px; padding:0 8px; font-size:.78rem; }
+    .conditional small { display:block; margin-top:9px; color:var(--indigo); font-size:.71rem; line-height:1.4; }
+    .settings-actions { display:flex; align-items:center; gap:12px; margin-top:14px; }
+    .settings-actions .button { min-height:40px; padding:0 16px; font-size:.84rem; }
+    .pull-progress { display:none; margin-top:13px; padding:11px 12px; border-radius:9px; color:var(--indigo); background:rgba(255,255,255,.44); font: .73rem/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; overflow-wrap:anywhere; }
+    .pull-progress.visible { display:block; }
+    footer { border-top:1px solid rgba(52,70,184,.18); padding:25px 0 35px; color:var(--muted); font-size:.79rem; }
+    footer .shell { display:flex; justify-content:space-between; gap:18px; }
+    footer a { color:var(--indigo); font-weight:700; }
+    @keyframes glass-in { from { opacity:0; transform:translateY(7px) scale(.99); } to { opacity:1; transform:none; } }
+    @media (max-width:760px) { .page-head { padding:32px 0 28px; display:block; } .page-head p { margin-top:17px; } .workspace { grid-template-columns:1fr; padding-bottom:45px; } .settings { order:-1; } }
+    @media (max-width:420px) { .shell { width:min(100% - 28px,1120px); } .site-header { height:66px; } nav a { padding:7px 8px; } .brand { font-size:1rem; } .mark { width:26px; height:26px; } .command-panel,.output-panel { padding:16px; } .command-form { grid-template-columns:1fr; } .command-form .button { width:100%; } .panel-head,.result-top { align-items:flex-start; flex-direction:column; } .panel-head span { text-align:left; } .badges { justify-content:flex-start; } .settings { padding:0 16px; } footer .shell { flex-direction:column; } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; } }
+  </style>
+</head>
+<body>
+  <header class="shell site-header"><a class="brand" href="index.html" aria-label="llm-ladder home"><span class="mark" aria-hidden="true">↗</span>llm-ladder</a><nav aria-label="Primary navigation"><a href="index.html">How it works</a><a href="stats.html">Ledger stats</a><a href="benchmark.html">Benchmarks</a></nav></header>
+  <main class="shell">
+    <section class="page-head"><div><span class="eyebrow">Confidence-gated issue routing</span><h1>RepoTriage Agent</h1></div><p>Describe a repository task in plain language and let the ladder classify each issue with the smallest confident model.</p></section>
+    <section class="card glass command-panel" aria-labelledby="command-title">
+      <h2 id="command-title" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Ask RepoTriage Agent</h2>
+      <form class="command-form" id="command-form"><label for="command-input">Command</label><input id="command-input" name="command" type="text" placeholder="Triage the open issues in owner/repository" autocomplete="off" required><button class="button" id="command-button" type="submit">Run agent</button></form>
+      <span id="status" role="status" aria-live="polite"></span>
+    </section>
+    <section class="workspace">
+      <section class="card glass output-panel" id="output-panel" aria-labelledby="output-title">
+        <div class="panel-head"><h2 id="output-title">Agent output</h2><span id="output-summary">Waiting for a command</span></div>
+        <div class="result-filters" id="result-filters" hidden>
+          <label class="field" for="filter-priority">Priority<select id="filter-priority"><option value="all">All</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+          <label class="field" for="filter-tier">Tier<select id="filter-tier"><option value="all">All</option><option value="0">Tier 0</option><option value="1">Tier 1</option><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
+        </div>
+        <div class="empty-state" id="empty-state">Results and answers will appear here as the agent works.</div>
+        <p class="answer" id="answer"></p>
+        <div class="results" id="results" aria-live="polite"></div>
+      </section>
+      <details class="card glass settings">
+        <summary>Model settings</summary>
+        <form class="settings-body" id="settings-form">
+          <p class="settings-intro">Choose how the local agent should run inference.</p>
+          <div class="mode-list">
+            <div class="mode-option"><label class="mode-choice"><input type="radio" name="model-mode" value="default" checked><span>Default (auto-download)</span></label></div>
+            <div class="mode-option"><label class="mode-choice"><input type="radio" name="model-mode" value="local"><span>Choose a local model</span></label><div class="conditional" id="local-fields"><div class="conditional-inner"><label class="field" for="local-model">Local model<select id="local-model"><option value="gemma3:4b">gemma3:4b</option><option value="qwen2.5:7b">qwen2.5:7b</option></select></label></div></div></div>
+            <div class="mode-option"><label class="mode-choice"><input type="radio" name="model-mode" value="api_key"><span>Use my own API key</span></label><div class="conditional" id="api-fields"><div class="conditional-inner"><label class="field" for="base-url">Base URL<input id="base-url" type="url" placeholder="https://api.example.com/v1" autocomplete="off"></label><label class="field" for="api-style">API style<select id="api-style"><option value="openai">OpenAI-compatible (/chat/completions)</option><option value="anthropic">Anthropic-compatible (/v1/messages — Claude, z.ai, etc.)</option></select></label><label class="field" for="api-model">Model name<input id="api-model" type="text" placeholder="gpt-4o-mini or glm-4.6" autocomplete="off"></label><label class="field" for="api-key">API key<input id="api-key" type="password" autocomplete="off"></label><small>Your key stays on this machine and is never written to disk.</small></div></div></div>
+          </div>
+          <div class="settings-actions"><button class="button" id="save-button" type="submit">Save</button></div>
+          <span id="settings-status" role="status" aria-live="polite"></span>
+          <div class="pull-progress" id="pull-progress" aria-live="polite"><strong>Model download</strong><span id="pull-status"></span></div>
+        </form>
+      </details>
+    </section>
+  </main>
+  <footer><div class="shell"><span>llm-ladder · confidence-gated local inference</span><a href="stats.html">Ledger dashboard</a></div></footer>
+  <script>
+    (function () {
+      const commandForm = document.getElementById("command-form"), commandInput = document.getElementById("command-input"), commandButton = document.getElementById("command-button");
+      const status = document.getElementById("status"), outputPanel = document.getElementById("output-panel"), outputSummary = document.getElementById("output-summary");
+      const emptyState = document.getElementById("empty-state"), answer = document.getElementById("answer"), results = document.getElementById("results");
+      const resultFilters = document.getElementById("result-filters"), filterPriority = document.getElementById("filter-priority"), filterTier = document.getElementById("filter-tier");
+      const settingsForm = document.getElementById("settings-form"), saveButton = document.getElementById("save-button"), settingsStatus = document.getElementById("settings-status");
+      const localFields = document.getElementById("local-fields"), apiFields = document.getElementById("api-fields"), localModel = document.getElementById("local-model");
+      const baseUrl = document.getElementById("base-url"), apiKey = document.getElementById("api-key"), apiModel = document.getElementById("api-model"), apiStyle = document.getElementById("api-style"), pullProgress = document.getElementById("pull-progress"), pullStatus = document.getElementById("pull-status");
+      let commandRun = 0, pullRun = 0, lastResultSignature = "";
+      const triageResults = new Map();
+      const delay = milliseconds => new Promise(resolve => window.setTimeout(resolve, milliseconds));
+
+      async function fetchJson(url, options) {
+        let response;
+        try { response = await fetch(url, options); } catch (_) { throw new Error("Could not reach the local agent server."); }
+        let body = null;
+        try { body = await response.json(); } catch (_) { body = null; }
+        if (!response.ok) {
+          const detail = body && (body.error || body.message || body.detail);
+          throw new Error(detail ? String(detail) : `The local server returned ${response.status}.`);
+        }
+        if (body === null) throw new Error("The local server returned an invalid JSON response.");
+        return body;
+      }
+
+      function setMessage(element, message, isError) {
+        element.className = isError ? "error" : "";
+        element.textContent = message;
+      }
+
+      function setOutputMode(mode) {
+        emptyState.style.display = mode === "empty" ? "grid" : "none";
+        answer.classList.toggle("visible", mode === "answer");
+        results.style.display = mode === "results" ? "grid" : "none";
+        outputPanel.classList.toggle("active", mode !== "empty");
+      }
+
+      function collectTriageRecords(value, found) {
+        if (Array.isArray(value)) { value.forEach(item => collectTriageRecords(item, found)); return; }
+        if (!value || typeof value !== "object") return;
+        if (Object.prototype.hasOwnProperty.call(value, "issue_number")) { found.push(value); return; }
+        ["results","items","result"].forEach(key => { if (Object.prototype.hasOwnProperty.call(value, key)) collectTriageRecords(value[key], found); });
+      }
+
+      function addTriageRecords(job) {
+        const found = [];
+        collectTriageRecords(job.progress, found);
+        collectTriageRecords(job.results, found);
+        collectTriageRecords(job.result, found);
+        found.forEach(record => triageResults.set(String(record.issue_number), record));
+        renderTriageResults();
+      }
+
+      function makeText(tag, className, value) {
+        const element = document.createElement(tag);
+        if (className) element.className = className;
+        element.textContent = value;
+        return element;
+      }
+
+      function renderTriageResults() {
+        const allRecords = Array.from(triageResults.values());
+        resultFilters.hidden = allRecords.length === 0;
+        const priorityWanted = filterPriority.value, tierWanted = filterTier.value;
+        const records = allRecords.filter(record => {
+          if (priorityWanted !== "all" && String(record.priority || "").toLowerCase() !== priorityWanted) return false;
+          if (tierWanted !== "all" && String(record.tier_index) !== tierWanted) return false;
+          return true;
+        });
+        const signature = JSON.stringify(allRecords) + "|" + priorityWanted + "|" + tierWanted;
+        if (signature === lastResultSignature) return;
+        lastResultSignature = signature;
+        results.replaceChildren();
+        records.forEach(record => {
+          const card = document.createElement("article"), top = document.createElement("div"), badges = document.createElement("div"), meta = document.createElement("div");
+          card.className = "result-card"; top.className = "result-top"; badges.className = "badges"; meta.className = "result-meta";
+          top.appendChild(makeText("h3", "issue-title", `Issue #${record.issue_number}`));
+          const tier = makeText("span", "badge", `tier ${record.tier_index}`), category = makeText("span", "badge", record.category || "other"), priority = makeText("span", `badge priority-${String(record.priority || "").toLowerCase()}`, record.priority || "unknown");
+          badges.append(tier, category, priority); top.appendChild(badges); card.appendChild(top);
+          card.appendChild(makeText("p", "result-reasoning", record.reasoning || "No reasoning provided."));
+          const model = document.createElement("span"), confidence = document.createElement("span"), duplicate = document.createElement("span");
+          model.append("Model: ", makeText("strong", "", record.model || "—"));
+          const confidenceValue = Number(record.confidence); confidence.append("Confidence: ", makeText("strong", "", Number.isFinite(confidenceValue) ? confidenceValue.toFixed(2) : "—"));
+          duplicate.append("Duplicate of: ", makeText("strong", "", record.duplicate_of == null ? "—" : `#${record.duplicate_of}`));
+          meta.append(model, confidence, duplicate); card.appendChild(meta); results.appendChild(card);
+        });
+        const filtered = priorityWanted !== "all" || tierWanted !== "all";
+        outputSummary.textContent = allRecords.length
+          ? (filtered ? `${records.length} of ${allRecords.length} shown` : `${allRecords.length} ${allRecords.length === 1 ? "issue" : "issues"} received`)
+          : "Agent is working…";
+      }
+
+      async function pollTriage(jobId, runId) {
+        while (runId === commandRun) {
+          let job;
+          try { job = await fetchJson(`/api/jobs/${encodeURIComponent(jobId)}`); } catch (error) { setMessage(status, error.message, true); commandButton.disabled = false; return; }
+          addTriageRecords(job);
+          if (job.state === "done") { setMessage(status, `Triage complete. ${triageResults.size} ${triageResults.size === 1 ? "issue" : "issues"} classified.`, false); outputSummary.textContent = "Triage complete"; commandButton.disabled = false; return; }
+          if (job.state === "error") { setMessage(status, job.error || "The triage job failed.", true); outputSummary.textContent = "Triage stopped"; commandButton.disabled = false; return; }
+          setMessage(status, `Triage running · ${triageResults.size} ${triageResults.size === 1 ? "result" : "results"} received`, false);
+          await delay(1500);
+        }
+      }
+
+      filterPriority.addEventListener("change", renderTriageResults);
+      filterTier.addEventListener("change", renderTriageResults);
+
+      commandForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const text = commandInput.value.trim();
+        if (!text) { setMessage(status, "Enter a command before running the agent.", true); commandInput.focus(); return; }
+        const runId = ++commandRun;
+        commandButton.disabled = true; triageResults.clear(); lastResultSignature = ""; results.replaceChildren(); answer.textContent = ""; setOutputMode("empty");
+        filterPriority.value = "all"; filterTier.value = "all"; resultFilters.hidden = true;
+        outputSummary.textContent = "Sending command…"; setMessage(status, "Sending command to the local agent…", false);
+        let response;
+        try { response = await fetchJson("/api/command", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})}); }
+        catch (error) { if (runId === commandRun) { setMessage(status, error.message, true); outputSummary.textContent = "Command failed"; commandButton.disabled = false; } return; }
+        if (runId !== commandRun) return;
+        if (response.kind === "ask") {
+          answer.textContent = response.answer == null ? "" : String(response.answer); setOutputMode("answer"); outputSummary.textContent = "Answer"; setMessage(status, "Answer ready.", false); commandButton.disabled = false; return;
+        }
+        if (response.kind === "triage_repo" && response.job_id) {
+          setOutputMode("results"); outputSummary.textContent = "Agent is working…"; setMessage(status, "Triage started…", false); await pollTriage(response.job_id, runId); return;
+        }
+        setMessage(status, "The local server returned an unsupported command response.", true); outputSummary.textContent = "Command failed"; commandButton.disabled = false;
+      });
+
+      function updateSettingsFields() {
+        const mode = settingsForm.elements["model-mode"].value, localActive = mode === "local", apiActive = mode === "api_key";
+        localFields.classList.toggle("active", localActive); localFields.setAttribute("aria-hidden", String(!localActive)); localModel.disabled = !localActive;
+        apiFields.classList.toggle("active", apiActive); apiFields.setAttribute("aria-hidden", String(!apiActive)); baseUrl.disabled = !apiActive; apiKey.disabled = !apiActive; apiModel.disabled = !apiActive;
+        baseUrl.required = apiActive; apiKey.required = apiActive; apiModel.required = apiActive;
+      }
+
+      async function pollPull(jobId, tag, runId) {
+        pullProgress.classList.add("visible");
+        while (runId === pullRun) {
+          let job;
+          try { job = await fetchJson(`/api/jobs/${encodeURIComponent(jobId)}`); } catch (error) { setMessage(pullStatus, error.message, true); saveButton.disabled = false; return; }
+          const line = job.progress && (job.progress.line || job.progress.message || job.progress.percent);
+          if (line != null) setMessage(pullStatus, String(line), false);
+          if (job.state === "done") { setMessage(pullStatus, `${tag} is ready.`, false); setMessage(settingsStatus, "Settings saved and model ready.", false); saveButton.disabled = false; return; }
+          if (job.state === "error") { setMessage(pullStatus, job.error || "The model download failed.", true); saveButton.disabled = false; return; }
+          await delay(1500);
+        }
+      }
+
+      settingsForm.addEventListener("change", event => { if (event.target.name === "model-mode") updateSettingsFields(); });
+      settingsForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const mode = settingsForm.elements["model-mode"].value;
+        const model = mode === "default" ? "gemma3:4b" : mode === "local" ? localModel.value : apiModel.value.trim();
+        const payload = {mode,model};
+        if (mode === "api_key") { payload.base_url = baseUrl.value.trim(); payload.model = apiModel.value.trim(); payload.api_style = apiStyle.value; payload.api_key = apiKey.value; }
+        const runId = ++pullRun;
+        saveButton.disabled = true; pullProgress.classList.remove("visible"); setMessage(pullStatus, "", false); setMessage(settingsStatus, "Saving settings…", false);
+        let saved;
+        try { saved = await fetchJson("/api/models", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); }
+        catch (error) { if (runId === pullRun) { setMessage(settingsStatus, error.message, true); saveButton.disabled = false; } return; }
+        if (runId !== pullRun) return;
+        setMessage(settingsStatus, "Settings saved.", false);
+        if (mode === "api_key") { saveButton.disabled = false; return; }
+        const modelIsPulled = saved.needs_pull === false || saved.pulled === true || saved.model_pulled === true || saved.installed === true;
+        const needsPull = !modelIsPulled;
+        if (!needsPull) { saveButton.disabled = false; return; }
+        setMessage(settingsStatus, `Settings saved. Downloading ${model}…`, false);
+        let pull;
+        try { pull = await fetchJson("/api/models/pull", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tag:model})}); }
+        catch (error) { setMessage(settingsStatus, error.message, true); saveButton.disabled = false; return; }
+        if (!pull.job_id) { setMessage(settingsStatus, "The local server did not return a model download job.", true); saveButton.disabled = false; return; }
+        await pollPull(pull.job_id, model, runId);
+      });
+
+      function addInstalledModelOptions(installed) {
+        const existing = new Set(Array.from(localModel.options).map(opt => opt.value));
+        let firstInstalledOption = null;
+        (installed || []).forEach(tag => {
+          if (existing.has(tag)) return;
+          const option = document.createElement("option");
+          option.value = tag; option.textContent = `${tag} (already installed)`;
+          localModel.appendChild(option);
+          existing.add(tag);
+          firstInstalledOption = firstInstalledOption || option;
+        });
+        return firstInstalledOption;
+      }
+
+      async function loadSavedSettings() {
+        let saved;
+        try { saved = await fetchJson("/api/models"); } catch (_) { return; }
+        const firstInstalledOption = addInstalledModelOptions(saved && saved.installed);
+        const config = saved && saved.config;
+        if (!config || !config.mode) {
+          // No saved config yet: if the user already has a model pulled locally,
+          // default the picker to that instead of a fresh unrelated download.
+          if (firstInstalledOption) firstInstalledOption.selected = true;
+          return;
+        }
+        const radio = settingsForm.querySelector('input[name="model-mode"][value="' + CSS.escape(config.mode) + '"]');
+        if (!radio) return;
+        radio.checked = true;
+        if (config.mode === "local" && config.model) {
+          const option = Array.from(localModel.options).find(opt => opt.value === config.model);
+          if (option) option.selected = true;
+        }
+        if (config.mode === "api_key") {
+          if (config.base_url) baseUrl.value = config.base_url;
+          if (config.model) apiModel.value = config.model;
+          if (config.api_style) apiStyle.value = config.api_style;
+        }
+        updateSettingsFields();
+      }
+
+      setOutputMode("empty");
+      updateSettingsFields();
+      loadSavedSettings();
+    }());
+  </script>
+</body>
+</html>
