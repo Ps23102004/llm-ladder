@@ -529,9 +529,17 @@ def test_run_lens_degrades_when_discover_models_raises(tmp_path):
 def test_lens_roster_explicit_models_skips_discovery():
     mock_discover = MagicMock()
     with patch("llm_ladder.digest.discover_models", mock_discover):
-        roster = digest._lens_roster(DigestOptions(models=["a", "b"]))
+        roster = digest._roster_for(["a", "b"])
     mock_discover.assert_not_called()
     assert roster == [("a", 0), ("b", 0)]
+
+
+def test_lens_roster_explicit_empty_list_is_not_treated_as_none():
+    mock_discover = MagicMock()
+    with patch("llm_ladder.digest.discover_models", mock_discover):
+        roster = digest._roster_for([])
+    mock_discover.assert_not_called()
+    assert roster == []
 
 
 def test_run_digest_nonexistent_file_raises_digest_error(tmp_path):

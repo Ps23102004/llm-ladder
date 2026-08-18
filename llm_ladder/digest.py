@@ -308,13 +308,21 @@ def _lens_prompt(material: str) -> str:
     )
 
 
+def _answered_takes(takes: list[LensTake]) -> list[LensTake]:
+    """Takes with a real (non-empty) answer — excludes both a failed call
+    (`take is None`) and a call that succeeded but returned blank/whitespace
+    content, which would otherwise count toward ">=2 models" and get judged
+    as if it were a real opinion."""
+    return [t for t in takes if t.take]
+
+
 def _judge_prompt(takes: list[LensTake]) -> str:
     """Prompt over the labeled takes, one "[model-name]: <take>" line each.
 
     Must force: "VERDICT: X of N models agree that <claim>", then a CONSENSUS
     bullet list, then DISAGREEMENT bullets naming which models are on each side.
     """
-    answered = [t for t in takes if t.take is not None]
+    answered = _answered_takes(takes)
     labeled = "\n\n".join(f"[{t.model}]: {t.take}" for t in answered)
     return (
         f"Here are {len(answered)} models' independent interpretations of the "
@@ -478,10 +486,11 @@ def _digest_single(
 def _roster_for(models: list[str] | None) -> list[tuple[str, int]]:
     """Roster as [(model_name, size_bytes)].
 
-    `models` given -> those names, size 0 (check_memory_safety becomes a
-    no-op for them; the caller already told us exactly what to run, no need
-    to shell out to `ollama list` to confirm it). None -> every model
-    discover_models() returns. Never hardcodes a model list.
+    `models` given (including an explicit empty list) -> those names, size 0
+    (check_memory_safety becomes a no-op for them; the caller already told us
+    exactly what to run, no need to shell out to `ollama list` to confirm
+    it). None -> every model discover_models() returns. Never hardcodes a
+    model list.
 
     discover_models() only runs when it's actually needed (models is None);
     if it fails (ollama missing/hung), that failure is returned as an empty
@@ -489,7 +498,7 @@ def _roster_for(models: list[str] | None) -> list[tuple[str, int]]:
     already-completed changelog digest (or bias-lens read) over this step
     alone.
     """
-    if models:
+    if models is not None:
         return [(name, 0) for name in models]
     try:
         discovered = discover_models()
@@ -498,12 +507,7 @@ def _roster_for(models: list[str] | None) -> list[tuple[str, int]]:
     return [(m.name, m.size_bytes) for m in discovered]
 
 
-def _lens_roster(opts: DigestOptions) -> list[tuple[str, int]]:
-    return _roster_for(opts.models)
-
-
 def _run_lens_core(
-    material: str,
     models: list[str] | None,
     lens_prompt: str,
     judge_prompt_fn: Callable[[list[LensTake]], str],
@@ -599,7 +603,6 @@ def _run_lens(
 ) -> LensResult:
     """Changelog-flavored call into the shared lens engine (see _run_lens_core)."""
     return _run_lens_core(
-        material,
         opts.models,
         _lens_prompt(material),
         _judge_prompt,

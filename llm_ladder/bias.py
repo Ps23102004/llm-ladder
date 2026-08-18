@@ -14,7 +14,13 @@ import time
 from dataclasses import dataclass
 
 from llm_ladder.config import ChainConfig, default_chains_path, load_chains
-from llm_ladder.digest import LensResult, LensTake, ProgressFn, _run_lens_core
+from llm_ladder.digest import (
+    LensResult,
+    LensTake,
+    ProgressFn,
+    _answered_takes,
+    _run_lens_core,
+)
 from llm_ladder.ledger import Ledger
 
 BIAS_CHAIN_TAG = "bias"
@@ -47,7 +53,7 @@ def _bias_lens_prompt(material: str) -> str:
 def _bias_judge_prompt(takes: list[LensTake]) -> str:
     """Prompt over the labeled takes; forces the same VERDICT/CONSENSUS/
     DISAGREEMENTS shape digest._parse_judge already knows how to parse."""
-    answered = [t for t in takes if t.take is not None]
+    answered = _answered_takes(takes)
     labeled = "\n\n".join(f"[{t.model}]: {t.take}" for t in answered)
     return (
         f"Here are {len(answered)} models' independent readings of the same "
@@ -80,7 +86,7 @@ def run_bias(
     or an unknown chain. OllamaConnectionError propagates from the judge
     cascade call untouched, same as run_digest.
     """
-    if path.startswith(("http://", "https://")):
+    if path.lower().startswith(("http://", "https://")):
         raise BiasError(
             "URL fetch isn't supported (would need a new HTML-extraction "
             "dependency) — pass a local text file instead"
@@ -97,7 +103,7 @@ def run_bias(
     try:
         chains = load_chains(default_chains_path())
     except ValueError as exc:
-        raise BiasError(f"chains.yaml is invalid: {exc}")
+        raise BiasError(f"chains.yaml is invalid: {exc}") from exc
     try:
         chain_config: ChainConfig = chains[chain]
     except KeyError:
@@ -105,7 +111,6 @@ def run_bias(
 
     ledger = Ledger()
     lens_result = _run_lens_core(
-        material,
         models,
         _bias_lens_prompt(material),
         _bias_judge_prompt,
