@@ -475,21 +475,22 @@ def _digest_single(
 # -- bias lens --------------------------------------------------------------
 
 
-def _lens_roster(opts: DigestOptions) -> list[tuple[str, int]]:
+def _roster_for(models: list[str] | None) -> list[tuple[str, int]]:
     """Roster as [(model_name, size_bytes)].
 
-    opts.models -> those names, size 0 (check_memory_safety becomes a no-op
-    for them; the caller already told us exactly what to run, no need to shell
-    out to `ollama list` to confirm it). Otherwise every model
+    `models` given -> those names, size 0 (check_memory_safety becomes a
+    no-op for them; the caller already told us exactly what to run, no need
+    to shell out to `ollama list` to confirm it). None -> every model
     discover_models() returns. Never hardcodes a model list.
 
-    discover_models() only runs when it's actually needed (opts.models is
-    None); if it fails (ollama missing/hung), that failure is returned as an
-    empty roster rather than raised — a --lens run shouldn't crash and lose
-    an already-completed changelog digest over the lens step alone.
+    discover_models() only runs when it's actually needed (models is None);
+    if it fails (ollama missing/hung), that failure is returned as an empty
+    roster rather than raised — a lens run shouldn't crash and lose an
+    already-completed changelog digest (or bias-lens read) over this step
+    alone.
     """
-    if opts.models:
-        return [(name, 0) for name in opts.models]
+    if models:
+        return [(name, 0) for name in models]
     try:
         discovered = discover_models()
     except RuntimeError:
@@ -497,31 +498,42 @@ def _lens_roster(opts: DigestOptions) -> list[tuple[str, int]]:
     return [(m.name, m.size_bytes) for m in discovered]
 
 
-def _run_lens(
+def _lens_roster(opts: DigestOptions) -> list[tuple[str, int]]:
+    return _roster_for(opts.models)
+
+
+def _run_lens_core(
     material: str,
-    opts: DigestOptions,
+    models: list[str] | None,
+    lens_prompt: str,
+    judge_prompt_fn: Callable[[list[LensTake]], str],
+    chain_tag: str,
     chain_config: ChainConfig,
     ledger: Ledger,
     report_progress: ProgressFn,
 ) -> LensResult:
-    """Fan the same material out to every roster model, then judge the takes.
+    """Fan `lens_prompt` out to every roster model, then judge the takes.
+
+    The shared engine behind both `ladder digest --lens` (changelog framing)
+    and `ladder bias` (article/policy-doc framing) — same fan-out +
+    memory-safety-retry + judge call, different prompts and ledger chain tag.
 
     Per model, in order: free_loaded_models() -> check_memory_safety(size) ->
     if not ok, append (model, reason) to `skipped` and continue; else time and
     ollama_client.chat(model, prompt), append a LensTake, and ledger.record(
-    chain=DIGEST_CHAIN_TAG, tier_index=0, model=model, confidence=1.0,
-    samples=1, escalated=False, used_last_tier=True, duration_s=elapsed).
-    A failing call records LensTake(model, error=str(exc)) and continues.
-    Reports {"phase": "lens", "model", "index", "total"} before each call.
+    chain=chain_tag, tier_index=0, model=model, confidence=1.0, samples=1,
+    escalated=False, used_last_tier=True, duration_s=elapsed). A failing call
+    records LensTake(model, error=str(exc)) and continues. Reports
+    {"phase": "lens", "model", "index", "total"} before each call.
 
     Then: if fewer than 2 takes have a non-None `take`, skip the judge and set
     note="needs >=2 distinct models to compare"; else free_loaded_models()
     again (so the judge chain's tier-0 doesn't stack against the last lens
-    model), report {"phase": "judge"}, and run one cascade over _judge_prompt.
+    model), report {"phase": "judge"}, and run one cascade over
+    judge_prompt_fn(result.takes), tagged chain_tag.
     """
-    roster = _lens_roster(opts)
+    roster = _roster_for(models)
     result = LensResult()
-    prompt = _lens_prompt(material)
     total = len(roster)
 
     for index, (model, size_bytes) in enumerate(roster, start=1):
@@ -543,7 +555,7 @@ def _run_lens(
             continue
         start = time.perf_counter()
         try:
-            resp = chat(model, prompt)
+            resp = chat(model, lens_prompt)
         except OllamaConnectionError as exc:
             result.takes.append(LensTake(model=model, error=str(exc)))
             continue
@@ -551,7 +563,7 @@ def _run_lens(
         take_text = resp.get("message", {}).get("content", "").strip()
         result.takes.append(LensTake(model=model, take=take_text))
         ledger.record(
-            chain=DIGEST_CHAIN_TAG,
+            chain=chain_tag,
             tier_index=0,
             model=model,
             confidence=1.0,
@@ -569,13 +581,33 @@ def _run_lens(
     free_loaded_models()
     report_progress({"phase": "judge"})
     judge_result = run_cascade(
-        _judge_prompt(result.takes), DIGEST_CHAIN_TAG, chain_config, ledger
+        judge_prompt_fn(result.takes), chain_tag, chain_config, ledger
     )
     verdict, consensus, disagreements = _parse_judge(judge_result.answer)
     result.lens_verdict = verdict
     result.consensus = consensus
     result.disagreements = disagreements
     return result
+
+
+def _run_lens(
+    material: str,
+    opts: DigestOptions,
+    chain_config: ChainConfig,
+    ledger: Ledger,
+    report_progress: ProgressFn,
+) -> LensResult:
+    """Changelog-flavored call into the shared lens engine (see _run_lens_core)."""
+    return _run_lens_core(
+        material,
+        opts.models,
+        _lens_prompt(material),
+        _judge_prompt,
+        DIGEST_CHAIN_TAG,
+        chain_config,
+        ledger,
+        report_progress,
+    )
 
 
 # -- entry point ------------------------------------------------------------

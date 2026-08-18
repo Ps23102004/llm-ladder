@@ -11,6 +11,7 @@ from llm_ladder.ledger import Ledger
 from llm_ladder.engine import run_cascade
 from llm_ladder.benchmark import run_benchmark
 from llm_ladder.digest import DigestError, DigestOptions, run_digest, to_markdown
+from llm_ladder.bias import BiasError, run_bias
 
 app = typer.Typer()
 console = Console()
@@ -255,6 +256,67 @@ def digest(
         for t in result.lens.takes:
             if t.error:
                 console.print(f"  [red]failed {t.model}:[/red] {t.error}")
+
+@app.command()
+def bias(
+    file: str = typer.Argument(..., help="Path to a plain text file to analyze (URL fetch not supported)"),
+    models: str = typer.Option(None, "--models", help="Comma-separated model names (default: auto-discover installed)"),
+    chain: str = typer.Option("default", "--chain", help="Name of the chain to use for the judge pass"),
+    json_out: bool = typer.Option(False, "--json", help="Output result as JSON"),
+):
+    """Run a doc through several local models and surface where they diverge on framing."""
+    model_list = [m.strip() for m in models.split(",")] if models else None
+
+    def _report(progress: dict) -> None:
+        phase = progress.get("phase")
+        if phase == "lens":
+            status.update(f"bias lens: {progress['model']} ({progress['index']}/{progress['total']})…")
+        elif phase == "judge":
+            status.update("judging model disagreement…")
+
+    try:
+        with console.status("running bias lens…") as status:
+            result = run_bias(file, models=model_list, chain=chain, report_progress=_report)
+    except BiasError as e:
+        error_console.print(f"[bold red]Bias Error:[/bold red] {e}")
+        raise typer.Exit(1)
+    except OllamaModelNotFoundError as e:
+        error_console.print(f"[bold red]Model Not Found:[/bold red] {e}")
+        raise typer.Exit(1)
+    except OllamaConnectionError as e:
+        error_console.print(f"[bold red]Ollama Connection Error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+    lens = result.lens
+
+    if json_out:
+        output = {
+            "source": result.source,
+            "verdict": lens.lens_verdict,
+            "consensus": lens.consensus,
+            "disagreements": lens.disagreements,
+            "note": lens.note,
+            "takes": [{"model": t.model, "take": t.take, "error": t.error} for t in lens.takes],
+            "skipped": lens.skipped,
+            "generated_at": result.generated_at,
+        }
+        console.print(json.dumps(output, indent=2))
+        return
+
+    console.print(f"[bold]BiasLens — {result.source}[/bold]")
+    if lens.note:
+        console.print(f"[yellow]{lens.note}[/yellow]")
+    if lens.lens_verdict:
+        console.print(f"[bold]{lens.lens_verdict}[/bold]")
+    for c in lens.consensus:
+        console.print(f"  [green]consensus:[/green] {c}")
+    for d_ in lens.disagreements:
+        console.print(f"  [red]disagreement:[/red] {d_}")
+    for model, reason in lens.skipped:
+        console.print(f"  [dim]skipped {model}: {reason}[/dim]")
+    for t in lens.takes:
+        if t.error:
+            console.print(f"  [red]failed {t.model}:[/red] {t.error}")
 
 @app.command()
 def serve():

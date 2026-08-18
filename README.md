@@ -98,6 +98,36 @@ tag per repo in `~/.llm-ladder/digest_state.json`, so `ladder digest
 same way `ladder benchmark` is — models are unloaded and memory-checked
 before each lens call so a 30B model never stacks against the last one.
 
+### BiasLens
+
+```bash
+ladder bias article.txt [--models m1,m2] [--chain default] [--json]
+```
+
+Runs a plain-text article or policy doc through every locally-installed
+Ollama model (auto-discovered, same roster logic as `ladder digest --lens`)
+and asks each one for its own read on the piece's framing — what it
+emphasizes, what it downplays or omits, and its tone. A cascade judge call
+then reconciles the takes into a real perspective diff: a `VERDICT` line,
+`CONSENSUS` bullets for what the models agree on, and `DISAGREEMENTS`
+bullets naming which models are on which side — not just N summaries pasted
+side by side. Needs at least 2 models to answer before the judge runs; with
+only one, it prints `needs >=2 distinct models to compare` instead.
+
+```
+$ ladder bias article.txt
+BiasLens — article.txt
+2 of 3 models agree the piece frames the policy as overdue reform
+  consensus: all three note the headline foregrounds the mayor's framing over critics'
+  disagreement: gemma4:e4b-mlx reads the tone as neutral; qwen3.8:27b-mlx and ornith:35b-q4_K_M read it as favorable to the developers
+```
+
+It's a thin feature: the fan-out-and-judge loop is the exact same engine
+`ladder digest --lens` uses (`digest._run_lens_core`), just pointed at a
+framing-focused prompt instead of a changelog one — no new LLM-calling layer,
+no new model roster logic. URL input isn't supported (it would need a new
+HTML-extraction dependency); pass a local text file.
+
 ## Web
 
 A self-contained, zero-dependency site in `web/` — no server needed:
