@@ -23,12 +23,19 @@ def chat(
     model: str,
     prompt: str,
     host: str | None = None,
+    images: list[str] | None = None,
 ) -> dict:
+    """`images` is a list of base64-encoded images (no data: prefix) for a
+    vision model; omitted entirely for text models, so text callers are
+    unaffected."""
     host = resolve_host(host)
     url = f"{host}/api/chat"
+    message: dict = {"role": "user", "content": prompt}
+    if images:
+        message["images"] = images
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [message],
         "stream": False,
     }
     try:
