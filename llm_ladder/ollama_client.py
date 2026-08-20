@@ -19,15 +19,23 @@ def resolve_host(host: str | None = None) -> str:
     return host or os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
 
 
+DEFAULT_TIMEOUT = 120
+
+
 def chat(
     model: str,
     prompt: str,
     host: str | None = None,
     images: list[str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
 ) -> dict:
     """`images` is a list of base64-encoded images (no data: prefix) for a
     vision model; omitted entirely for text models, so text callers are
-    unaffected."""
+    unaffected.
+
+    `timeout` defaults to the previous hard-coded 120s. A vision model on a
+    cold start pays a multi-GB load before it emits its first token and can
+    exceed that, so image callers raise it."""
     host = resolve_host(host)
     url = f"{host}/api/chat"
     message: dict = {"role": "user", "content": prompt}
@@ -39,7 +47,7 @@ def chat(
         "stream": False,
     }
     try:
-        response = requests.post(url, json=payload, timeout=120)
+        response = requests.post(url, json=payload, timeout=timeout)
         response.raise_for_status()
         return response.json()
     except (requests.ConnectionError, requests.Timeout) as exc:
