@@ -155,6 +155,14 @@ Exposes `ladder_run` and `ladder_chains` as MCP tools — attach the cascade to 
 }
 ```
 
+## Where it fails
+
+- **Agreement is exact string match.** `confidence.py` only ignores whitespace, case, wrapping `**`/backticks and trailing `.!?`. Short answers ("Paris", "42") can agree; three paraphrased explanations almost never do. So open-ended prompts escalate to the top tier nearly every time, and they cost more than calling the big model directly: 3 + 3 + 1 calls instead of 1.
+- **Agreement isn't correctness.** If the small model is consistently wrong, 3 of 3 samples agree and the wrong answer is returned at confidence 1.0. Nothing checks the answer itself.
+- **Sample diversity isn't controlled.** No temperature is sent, so variation comes from each model's Ollama default. A model configured near temperature 0 will agree with itself on everything and never escalate.
+- **"Savings" counts runs, not compute.** `estimated_savings_pct` is the share of runs that stopped before the last tier. It doesn't subtract the extra samples that escalated runs paid for, so it overstates what was saved.
+- **No accuracy baseline yet** (see Status above). Until the cascade is compared against always using the top model on a labelled set, the cost/quality trade-off is unmeasured.
+
 ## Why This Exists
 
 Local LLM inference involves a direct trade-off between model size and latency/cost. Large models (e.g., 70B parameters) provide higher accuracy but are extremely slow on consumer hardware. Smaller models (e.g., 7B parameters) are fast but prone to errors on complex tasks.
