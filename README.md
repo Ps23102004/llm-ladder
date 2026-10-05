@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/Ps23102004/llm-ladder/actions/workflows/tests.yml/badge.svg)](https://github.com/Ps23102004/llm-ladder/actions/workflows/tests.yml)
 
-**llm-ladder** is a cascading confidence-gated local LLM router designed to optimize local inference costs. Instead of routing every prompt to a large, slow model, it attempts to resolve queries with smaller, faster models first. It only escalates to bigger, slower models when the smaller ones "disagree with themselves" (i.e., fall below a confidence threshold). The aim is to cut local inference cost and latency on simple tasks and reserve heavy compute for hard ones. **Status:** the cost ledger measures what each run actually spent, but an accuracy-vs-cost comparison against always-using-the-big-model has not been run yet.
+**llm-ladder** runs a prompt on a small local model first and moves to a larger one only when repeated answers from the small model disagree. Simple prompts stay cheap and fast; hard ones get the bigger model. **Status:** the cost ledger measures what each run actually spent, but an accuracy-vs-cost comparison against always-using-the-big-model has not been run yet.
 
 ![The cascade landing page and the ledger stats dashboard showing savings by tier](assets/llm-ladder-demo.gif)
 
@@ -134,7 +134,7 @@ HTML-extraction dependency); pass a local text file.
 
 A self-contained, zero-dependency site in `web/` — no server needed:
 
-- **`index.html`** — pitch page with a visual walkthrough of the confidence-gated escalation flow.
+- **`index.html`** — pitch page with a visual walkthrough of the escalation flow.
 - **`digest.html`** — run `ladder digest` from the browser (requires `ladder serve`): repo path, release count, and an optional perspective lens, with live progress polling.
 - **`stats.html`** — load your `~/.llm-ladder/ledger.jsonl` (file picker, drag-and-drop, or paste) and get a live dashboard: savings %, tier breakdown, recent runs, with chain/tier/model filters. Parsing happens entirely in your browser.
 - **`benchmark.html`** — load your `~/.llm-ladder/benchmark.jsonl` and get a ranked leaderboard across speed and all 8 quality categories, filterable per category.
@@ -145,7 +145,7 @@ A self-contained, zero-dependency site in `web/` — no server needed:
 pip install -e ".[mcp]"
 ```
 
-Exposes `ladder_run` and `ladder_chains` as MCP tools — attach the confidence-gated cascade to Claude Desktop, Claude Code, or any MCP client:
+Exposes `ladder_run` and `ladder_chains` as MCP tools — attach the cascade to Claude Desktop, Claude Code, or any MCP client:
 
 ```json
 {
